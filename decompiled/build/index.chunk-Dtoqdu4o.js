@@ -1,0 +1,705 @@
+"use strict";
+var W = Object.create;
+var C = Object.defineProperty;
+var z = Object.getOwnPropertyDescriptor;
+var N = Object.getOwnPropertyNames;
+var q = Object.getPrototypeOf,
+    K = Object.prototype.hasOwnProperty;
+var U = (h, e, t, s) => {
+    if (e && typeof e == "object" || typeof e == "function")
+        for (let r of N(e)) !K.call(h, r) && r !== t && C(h, r, {
+            get: () => e[r],
+            enumerable: !(s = z(e, r)) || s.enumerable
+        });
+    return h
+};
+var v = (h, e, t) => (t = h != null ? W(q(h)) : {}, U(e || !h || !h.__esModule ? C(t, "default", {
+    value: h,
+    enumerable: !0
+}) : t, h));
+(function() {
+    try {
+        var h = typeof window < "u" ? window : typeof global < "u" ? global : typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : {};
+        h.SENTRY_RELEASE = {
+            id: "df1d8a339dfabcf359af7144fe142b59ff7d9a0f"
+        }
+    } catch {}
+})();
+try {
+    (function() {
+        var h = typeof window < "u" ? window : typeof global < "u" ? global : typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : {},
+            e = new h.Error().stack;
+        e && (h._sentryDebugIds = h._sentryDebugIds || {}, h._sentryDebugIds[e] = "c6d6599e-cdcf-4405-989d-4cbbcecf5e91", h._sentryDebugIdIdentifier = "sentry-dbid-c6d6599e-cdcf-4405-989d-4cbbcecf5e91")
+    })()
+} catch {}
+Object.defineProperty(exports, Symbol.toStringTag, {
+    value: "Module"
+});
+const j = require("node:crypto"),
+    F = require("node:fs"),
+    X = require("node:os"),
+    l = require("./index.chunk-c42vKsva.js"),
+    Q = require("./index.chunk-BDRRlMkw.js");
+
+function H() {
+    return {
+        shell: "powershell.exe",
+        args: []
+    }
+}
+const Z = /^[A-Za-z0-9.@_:-]+$/;
+
+function G(h, e) {
+    const {
+        sshHost: t,
+        sshPort: s,
+        sshIdentityFile: r
+    } = h;
+    if (typeof t != "string" || !Z.test(t) || t.startsWith("-")) return l.logger.warn(`Refusing SSH shell PTY for invalid sshHost: ${t}`), null;
+    if (s !== void 0 && !Number.isInteger(s)) return l.logger.warn(`Refusing SSH shell PTY for non-integer sshPort: ${s}`), null;
+    if (/[\x00-\x1f\x7f]/.test(e)) return l.logger.warn("Refusing SSH shell PTY for remote cwd with control bytes"), null;
+    if (/^[A-Za-z]:[\\/]/.test(e) || e.startsWith("\\")) return l.logger.warn("Refusing SSH shell PTY for Windows remote cwd (unsupported)"), null;
+    if (e.includes("\\")) return l.logger.warn("Refusing SSH shell PTY for remote cwd with backslash"), null;
+    if (/[‘-‛]/.test(e)) return l.logger.warn("Refusing SSH shell PTY for remote cwd with smart-quote"), null;
+    const i = typeof r == "string" && r.length > 0 && !r.startsWith("-") && !/[\x00-\x1f\x7f]/.test(r) ? r : void 0;
+    r && !i && l.logger.warn("Dropping invalid sshIdentityFile for SSH shell PTY");
+    const o = Q.shellQuote(e),
+        f = `printf '${J}'`;
+    return {
+        shell: "ssh",
+        args: ["-t", ...s !== void 0 ? ["-p", String(s)] : [], ...i ? ["-i", i] : [], "--", t, `cd ${o} && ${f} && exec $SHELL -l`],
+        cwd: X.homedir()
+    }
+}
+const L = "\x1B]697;ShellReady\x07",
+    J = L.replace(/\x1b/g, "\\033").replace(/\x07/g, "\\007"),
+    V = 3e4,
+    _ = "::";
+
+function A(h) {
+    const e = h.indexOf(_);
+    return e === -1 ? h : h.slice(0, e)
+}
+
+function I(h, e) {
+    return !e || e === "0" ? h : `${h}${_}${e}`
+}
+const k = 256 * 1024,
+    O = 16;
+class x {
+    constructor() {
+        this.chunks = [], this.len = 0
+    }
+    push(e) {
+        for (this.chunks.push(e), this.len += e.length; this.chunks.length > 1 && this.len - this.chunks[0].length >= k;) this.len -= this.chunks.shift().length
+    }
+    snapshot() {
+        this.chunks.length > 1 && (this.chunks = [this.chunks.join("")]);
+        let e = this.chunks[0] ?? "";
+        return e.length > k && (e = e.slice(e.length - k), this.chunks[0] = e), this.len = e.length, e
+    }
+}
+const ee = 16,
+    te = 16,
+    se = 400,
+    re = 3e4,
+    M = 100 * 1024,
+    E = "\x1B",
+    Y = "\x07",
+    ie = new RegExp(`${E}(?:\\[[0-?]*[ -/]*[@-~]|\\][^${Y}${E}]*(?:${Y}|${E}\\\\)|[@-Z\\\\-_])`, "g");
+class le {
+    constructor(e) {
+        this.ptyProcesses = new Map, this.shellPtyProcesses = new Map, this.shellPtyBuffers = new Map, this.pendingEmits = {
+            pty_data: new Map,
+            shell_pty_data: new Map
+        }, this.flushTimer = null, this.inFlightKills = new Set, this.shellPtyBytesReceived = new Map, this.shellOutputWaiters = new Map, this.runCommandInFlight = new Set, this.shellPtyReady = new Map, this.sshShellReady = new Map, this.bashPtyProcesses = new Map, this.bashPtyBuffers = new Map, this.bashPtyBytesReceived = new Map, this.bashPtyReady = new Map, this.bashPtyDataNotify = new Map, this.config = e, l.registerQuitHandler({
+            name: "local-session-pty-cleanup",
+            fn: async () => {
+                const t = [...this.ptyProcesses.values(), ...this.shellPtyProcesses.values(), ...this.bashPtyProcesses.values()];
+                t.length === 0 && this.inFlightKills.size === 0 || (l.logger.info(`[CCD] Killing ${t.length} PTY process tree(s) on quit` + (this.inFlightKills.size > 0 ? ` (+ ${this.inFlightKills.size} in-flight)` : "")), await Promise.allSettled([...t.map(s => this.killPtyTree(s)), ...this.inFlightKills]), this.ptyProcesses.clear(), this.shellPtyProcesses.clear(), this.shellPtyBuffers.clear(), this.shellPtyBytesReceived.clear(), this.bashPtyProcesses.clear(), this.bashPtyBuffers.clear(), this.bashPtyBytesReceived.clear(), this.flushTimer && (clearTimeout(this.flushTimer), this.flushTimer = null), this.pendingEmits.pty_data.clear(), this.pendingEmits.shell_pty_data.clear())
+            }
+        })
+    }
+    async startPty(e, t = 80, s = 24) {
+        var S, b;
+        const r = this.config.getSession(e);
+        if (!r) return l.logger.error(`Cannot start PTY: session ${e} not found`), null;
+        if (!r.cliSessionId) return l.logger.error(`Cannot start PTY: session ${e} has no CLI session ID`), null;
+        const i = this.ptyProcesses.get(e);
+        if (i) return l.logger.info(`PTY already exists for session ${e}, reusing`), i;
+        const o = await this.config.resolveCliSpawn(e).catch(P => (l.logger.error(`Cannot start session ${e}: ${P.message}`), null));
+        if (!o) return null;
+        const {
+            executable: f,
+            env: a
+        } = o, g = ["--resume", r.cliSessionId];
+        r.model && g.push("--model", r.model), l.logger.info(`Starting PTY for session ${e} with args: ${g.join(" ")}`);
+        let p;
+        try {
+            p = (await import("node-pty")).spawn
+        } catch (P) {
+            return l.logger.error("Failed to load pty %o", {
+                error: P
+            }), (S = o.dispose) == null || S.call(o), null
+        }
+        let n;
+        try {
+            n = p(f, g, {
+                name: "xterm-256color",
+                cols: t,
+                rows: s,
+                cwd: r.worktreePath || r.cwd,
+                env: {
+                    ...a,
+                    TERM: "xterm-256color",
+                    COLORTERM: "truecolor"
+                }
+            })
+        } catch (P) {
+            l.logger.error(`Failed to spawn PTY for session ${e}: ${String(P)}`), (b = o.dispose) == null || b.call(o);
+            const w = {
+                type: "pty_close",
+                sessionId: e,
+                code: 1
+            };
+            return this.config.emit(w), null
+        }
+        n.onExit(({
+            exitCode: P
+        }) => {
+            var T;
+            if ((T = o.dispose) == null || T.call(o), this.ptyProcesses.get(e) !== n) {
+                l.logger.info(`PTY for session ${e} exited (stale — already replaced)`);
+                return
+            }
+            l.logger.info(`PTY for session ${e} exited with code ${P}`), this.flushAllPtyEmits(), this.ptyProcesses.delete(e);
+            const w = {
+                type: "pty_close",
+                sessionId: e,
+                code: P
+            };
+            this.config.emit(w)
+        });
+        const d = this.config.getSession(e);
+        if (!d || d.isArchived) return l.logger.info(`PTY spawn for session ${e} raced with archive, discarding`), this.trackKill(n), null;
+        const u = this.ptyProcesses.get(e);
+        return u ? (l.logger.info(`PTY spawn for session ${e} lost race to concurrent startPty, discarding`), this.trackKill(n), u) : (this.ptyProcesses.set(e, n), n.onData(P => {
+            this.ptyProcesses.get(e) === n && this.queuePtyEmit("pty_data", e, P)
+        }), n)
+    }
+    queuePtyEmit(e, t, s) {
+        const r = this.pendingEmits[e],
+            i = r.get(t);
+        i ? i.push(s) : r.set(t, [s]), this.flushTimer ?? (this.flushTimer = setTimeout(() => this.flushAllPtyEmits(), O))
+    }
+    flushAllPtyEmits() {
+        this.flushTimer && (clearTimeout(this.flushTimer), this.flushTimer = null);
+        for (const e of ["pty_data", "shell_pty_data"]) {
+            const t = this.pendingEmits[e];
+            if (t.size === 0) continue;
+            const s = [...t];
+            t.clear();
+            for (const [r, i] of s) try {
+                this.config.emit({
+                    type: e,
+                    sessionId: r,
+                    data: i.join("")
+                })
+            } catch (o) {
+                l.logger.warn("[ShellPtyManager] pty emit failed", o)
+            }
+        }
+    }
+    stopPty(e) {
+        const t = this.ptyProcesses.get(e);
+        if (t) {
+            l.logger.info(`Stopping PTY for session ${e}`), this.flushAllPtyEmits(), this.trackKill(t), this.ptyProcesses.delete(e);
+            const s = {
+                type: "pty_close",
+                sessionId: e
+            };
+            this.config.emit(s)
+        }
+    }
+    resizePty(e, t, s) {
+        const r = this.ptyProcesses.get(e);
+        if (r) try {
+            r.resize(t, s)
+        } catch {}
+    }
+    writePty(e, t) {
+        const s = this.ptyProcesses.get(e);
+        if (s) try {
+            s.write(t)
+        } catch {}
+    }
+    awaitSshShellReady(e) {
+        const t = this.sshShellReady.get(e);
+        if (t) return Promise.race([t.promise, new Promise(s => {
+            var i;
+            const r = setTimeout(() => s("timeout"), V);
+            (i = r.unref) == null || i.call(r)
+        })]).then(s => {
+            var r;
+            return s === "timeout" && ((r = this.sshShellReady.get(e)) == null || r.settle("ready"), this.sshShellReady.delete(e)), s
+        })
+    }
+    async startShellPty(e, t, s) {
+        var w, T, $, B;
+        const r = A(e),
+            i = this.config.getSession(r);
+        if (!i) return {
+            ok: !1,
+            error: "Session not found"
+        };
+        const o = this.shellPtyProcesses.get(e);
+        if (o) {
+            if (this.shellPtyProcesses.delete(e), this.shellPtyProcesses.set(e, o), await this.awaitSshShellReady(e) === "exited") return {
+                ok: !1,
+                error: "SSH shell exited before becoming ready. Check your SSH credentials and try again."
+            };
+            this.pendingEmits.shell_pty_data.delete(e);
+            const c = (w = this.shellPtyBuffers.get(e)) == null ? void 0 : w.snapshot(),
+                y = o.cols,
+                m = o.rows;
+            try {
+                o.resize(t, s)
+            } catch {}
+            return {
+                ok: !0,
+                buffered: c,
+                cols: y,
+                rows: m
+            }
+        }
+        const f = i.worktreePath || i.cwd;
+        let a;
+        if (i.wslConfig) return {
+            ok: !1,
+            error: "The integrated terminal is not available for WSL sessions yet."
+        };
+        let g = "";
+        if (i.sshConfig) {
+            try {
+                await this.config.assertSshHostAllowed(i.sshConfig)
+            } catch (y) {
+                return {
+                    ok: !1,
+                    error: y instanceof Error ? y.message : "SSH host not allowed by policy. Contact your administrator."
+                }
+            }
+            let c;
+            try {
+                c = await (($ = (T = this.config).expandRemoteTilde) == null ? void 0 : $.call(T, i.sshConfig, f)) ?? f
+            } catch (y) {
+                return {
+                    ok: !1,
+                    error: y instanceof Error ? y.message : "SSH connection failed. Check your SSH configuration and try again."
+                }
+            }
+            if (a = G(i.sshConfig, c), !a) return {
+                ok: !1,
+                error: "Invalid SSH configuration. Check your SSH settings."
+            };
+            try {
+                const y = await this.config.resolveSSHBinary(a.shell, a.args);
+                a = {
+                    ...a,
+                    shell: y.cmd,
+                    args: y.args
+                }
+            } catch (y) {
+                return l.logger.warn("Failed to resolve ssh binary for SSH shell PTY", y), {
+                    ok: !1,
+                    error: "Could not locate the ssh binary. Install OpenSSH or ensure it's on PATH."
+                }
+            }
+            try {
+                g = await this.config.resolveSshEnvPath()
+            } catch {
+                g = ""
+            }
+        }
+        if (!a) try {
+            await F.promises.access(f)
+        } catch {
+            return l.logger.warn(`Cannot start shell PTY for session ${e}: cwd "${f}" does not exist`), {
+                ok: !1,
+                error: `Working directory "${f}" does not exist`
+            }
+        }
+        let p;
+        try {
+            p = (await import("node-pty")).spawn
+        } catch (c) {
+            return l.logger.error("Failed to load node-pty %o", {
+                error: c
+            }), {
+                ok: !1,
+                error: "Failed to load terminal backend"
+            }
+        }
+        const n = this.config.getSession(r);
+        if (!n || n.isArchived) return {
+            ok: !1,
+            error: "Session was archived"
+        };
+        const d = this.shellPtyProcesses.get(e);
+        if (d) {
+            if (this.shellPtyProcesses.delete(e), this.shellPtyProcesses.set(e, d), await this.awaitSshShellReady(e) === "exited") return {
+                ok: !1,
+                error: "SSH shell exited before becoming ready. Check your SSH credentials and try again."
+            };
+            this.pendingEmits.shell_pty_data.delete(e);
+            const c = (B = this.shellPtyBuffers.get(e)) == null ? void 0 : B.snapshot(),
+                y = d.cols,
+                m = d.rows;
+            try {
+                d.resize(t, s)
+            } catch {}
+            return {
+                ok: !0,
+                buffered: c,
+                cols: y,
+                rows: m
+            }
+        }
+        const u = a ?? {
+            ...H(),
+            cwd: f
+        };
+        let S;
+        try {
+            S = p(u.shell, u.args, {
+                name: "xterm-256color",
+                cols: t,
+                rows: s,
+                cwd: u.cwd,
+                env: {
+                    ...process.env,
+                    ...g ? {
+                        PATH: g
+                    } : {},
+                    TERM: "xterm-256color",
+                    COLORTERM: "truecolor"
+                }
+            })
+        } catch (c) {
+            return l.logger.error(`Failed to spawn shell ${u.shell} for session ${e}`, {
+                error: c
+            }), {
+                ok: !1,
+                error: "Failed to spawn shell"
+            }
+        }
+        if (this.shellPtyProcesses.set(e, S), this.shellPtyBuffers.set(e, new x), this.shellPtyBytesReceived.set(e, 0), this.shellPtyProcesses.size > ee) {
+            for (const c of this.shellPtyProcesses.keys())
+                if (A(c) !== r) {
+                    l.logEvent("desktop_ccd_terminal_pty_evicted", {
+                        pool: "shell",
+                        size: this.shellPtyProcesses.size
+                    }), this.stopShellPtyKey(c);
+                    break
+                }
+        }
+        let b;
+        this.shellPtyReady.set(e, new Promise(c => b = c));
+        let P = !1;
+        return S.onData(c => {
+            var m;
+            if (this.shellPtyProcesses.get(e) !== S) return;
+            P || (P = !0, b());
+            const y = (this.shellPtyBytesReceived.get(e) ?? 0) + c.length;
+            this.shellPtyBytesReceived.set(e, y), (m = this.shellPtyBuffers.get(e)) == null || m.push(c), this.queuePtyEmit("shell_pty_data", e, c);
+            for (const [D, R] of this.shellOutputWaiters) R.sessionId === e && y > R.thresholdLength && (clearTimeout(R.timer), this.shellOutputWaiters.delete(D), R.resolve({
+                grew: !0
+            }))
+        }), S.onExit(({
+            exitCode: c
+        }) => {
+            var m;
+            if (this.shellPtyProcesses.get(e) !== S) {
+                l.logger.info(`Shell PTY for session ${e} exited (stale — already replaced)`);
+                return
+            }
+            l.logger.info(`Shell PTY for session ${e} exited with code ${c}`), this.flushAllPtyEmits(), this.shellPtyProcesses.delete(e), this.shellPtyBuffers.delete(e), this.shellPtyBytesReceived.delete(e), this.shellPtyReady.delete(e), (m = this.sshShellReady.get(e)) == null || m.settle("exited"), this.sshShellReady.delete(e), this.timeoutWaitersForSession(e);
+            const y = {
+                type: "shell_pty_close",
+                sessionId: e,
+                code: c
+            };
+            this.config.emit(y)
+        }), l.logEvent("desktop_ccd_terminal_spawned", {
+            sessionId: e,
+            shell: u.shell.split(/[/\\]/).pop() || u.shell
+        }), a && await this.awaitSshShellReady(e) === "exited" ? {
+            ok: !1,
+            error: "SSH shell exited before becoming ready. Check your SSH credentials and try again."
+        } : {
+            ok: !0
+        }
+    }
+    async killPtyTree(e) {
+        if (e.pid <= 0) return;
+        const {
+            spawnAsyncDirect: t
+        } = await Promise.resolve().then(() => require("./index.chunk-c42vKsva.js")).then(s => s.spawnPromise);
+        {
+            try {
+                await t("taskkill", ["/pid", String(e.pid), "/T", "/F"], {
+                    ignoreExitCode: !0
+                })
+            } catch {}
+            return
+        }
+    }
+    trackKill(e) {
+        const t = this.killPtyTree(e).catch(s => {
+            l.logger.warn("killPtyTree failed", s)
+        }).finally(() => this.inFlightKills.delete(t));
+        this.inFlightKills.add(t)
+    }
+    stopShellPty(e, t) {
+        if (this.stopShellPtyKey(e), t != null && t.noSweep || e.includes(_)) return;
+        const s = e + _;
+        for (const r of Array.from(this.shellPtyProcesses.keys())) r.startsWith(s) && this.stopShellPtyKey(r)
+    }
+    stopShellPtyKey(e) {
+        var s;
+        const t = this.shellPtyProcesses.get(e);
+        if (t) {
+            l.logger.info(`Stopping shell PTY for session ${e}`), this.flushAllPtyEmits(), this.trackKill(t), this.shellPtyProcesses.delete(e), this.shellPtyBuffers.delete(e), this.shellPtyBytesReceived.delete(e), this.shellPtyReady.delete(e), (s = this.sshShellReady.get(e)) == null || s.settle("exited"), this.sshShellReady.delete(e), this.timeoutWaitersForSession(e);
+            const r = {
+                type: "shell_pty_close",
+                sessionId: e
+            };
+            this.config.emit(r)
+        }
+    }
+    timeoutWaitersForSession(e) {
+        for (const [t, s] of this.shellOutputWaiters) s.sessionId === e && (clearTimeout(s.timer), this.shellOutputWaiters.delete(t), s.resolve({
+            timedOut: !0
+        }))
+    }
+    resizeShellPty(e, t, s) {
+        const r = this.shellPtyProcesses.get(e);
+        if (r) {
+            this.shellPtyProcesses.delete(e), this.shellPtyProcesses.set(e, r);
+            try {
+                r.resize(t, s)
+            } catch {}
+        }
+    }
+    writeShellPty(e, t) {
+        const s = this.shellPtyProcesses.get(e);
+        if (s) {
+            this.shellPtyProcesses.delete(e), this.shellPtyProcesses.set(e, s);
+            try {
+                s.write(t)
+            } catch {}
+        }
+    }
+    getShellPtyBuffer(e) {
+        var t;
+        return ((t = this.shellPtyBuffers.get(e)) == null ? void 0 : t.snapshot()) ?? null
+    }
+    async getBusyShellPtyKeys(e) {
+        const t = e + _;
+        return {
+            live: Array.from(this.shellPtyProcesses.entries()).filter(([i]) => i === e || i.startsWith(t)).map(([i]) => i),
+            busy: [],
+            probed: !1
+        }
+    }
+    async startBashPty(e) {
+        const t = this.config.getSession(e);
+        if (!t) return {
+            ok: !1,
+            error: "Session not found"
+        };
+        if (this.bashPtyProcesses.has(e)) return {
+            ok: !0
+        };
+        const s = t.worktreePath || t.cwd;
+        try {
+            await F.promises.access(s)
+        } catch {
+            return {
+                ok: !1,
+                error: `Working directory "${s}" does not exist`
+            }
+        }
+        let r;
+        try {
+            r = (await import("node-pty")).spawn
+        } catch (n) {
+            return l.logger.error("Failed to load node-pty %o", {
+                error: n
+            }), {
+                ok: !1,
+                error: "Failed to load terminal backend"
+            }
+        }
+        const i = this.config.getSession(e);
+        if (!i || i.isArchived) return {
+            ok: !1,
+            error: "Session was archived"
+        };
+        if (this.bashPtyProcesses.has(e)) return {
+            ok: !0
+        };
+        const {
+            shell: o,
+            args: f
+        } = H();
+        let a;
+        try {
+            a = r(o, f, {
+                name: "xterm-256color",
+                cols: 80,
+                rows: 24,
+                cwd: s,
+                env: {
+                    ...process.env,
+                    TERM: "xterm-256color",
+                    COLORTERM: "truecolor"
+                }
+            })
+        } catch (n) {
+            return l.logger.error(`Failed to spawn bash-mode shell ${o} for session ${e}`, {
+                error: n
+            }), {
+                ok: !1,
+                error: "Failed to spawn shell"
+            }
+        }
+        if (this.bashPtyProcesses.set(e, a), this.bashPtyBuffers.set(e, new x), this.bashPtyBytesReceived.set(e, 0), this.bashPtyProcesses.size > te) {
+            for (const n of this.bashPtyProcesses.keys())
+                if (n !== e && !this.runCommandInFlight.has(n)) {
+                    l.logEvent("desktop_ccd_terminal_pty_evicted", {
+                        pool: "bash",
+                        size: this.bashPtyProcesses.size
+                    }), this.stopBashPty(n);
+                    break
+                }
+        }
+        let g;
+        this.bashPtyReady.set(e, new Promise(n => g = n));
+        let p = !1;
+        return a.onData(n => {
+            var d, u;
+            this.bashPtyProcesses.get(e) === a && (p || (p = !0, g()), this.bashPtyBytesReceived.set(e, (this.bashPtyBytesReceived.get(e) ?? 0) + n.length), (d = this.bashPtyBuffers.get(e)) == null || d.push(n), (u = this.bashPtyDataNotify.get(e)) == null || u())
+        }), a.onExit(({
+            exitCode: n
+        }) => {
+            this.bashPtyProcesses.get(e) === a && (l.logger.info(`Bash-mode PTY for session ${e} exited with code ${n}`), this.bashPtyProcesses.delete(e), this.bashPtyBuffers.delete(e), this.bashPtyBytesReceived.delete(e), this.bashPtyReady.delete(e), this.bashPtyDataNotify.delete(e), this.runCommandInFlight.delete(e))
+        }), {
+            ok: !0
+        }
+    }
+    stopBashPty(e) {
+        const t = this.bashPtyProcesses.get(e);
+        t && (l.logger.info(`Stopping bash-mode PTY for session ${e}`), this.trackKill(t), this.bashPtyProcesses.delete(e), this.bashPtyBuffers.delete(e), this.bashPtyBytesReceived.delete(e), this.bashPtyReady.delete(e), this.bashPtyDataNotify.delete(e), this.runCommandInFlight.delete(e))
+    }
+    async runCommand(e, t) {
+        var i;
+        if (this.runCommandInFlight.has(e)) return {
+            error: "A command is already running in this session"
+        };
+        if (!this.bashPtyProcesses.has(e)) {
+            const o = await this.startBashPty(e);
+            if (!o.ok) return {
+                error: o.error ?? "Failed to start shell"
+            }
+        }
+        const s = this.bashPtyProcesses.get(e);
+        if (!s) return {
+            error: "Shell unavailable"
+        };
+        const r = this.bashPtyReady.get(e);
+        if (r && await Promise.race([r.then(() => !1), new Promise(f => setTimeout(() => f(!0), 5e3))])) return {
+            error: "Shell did not become ready within 5s"
+        };
+        if (this.runCommandInFlight.has(e)) return {
+            error: "A command is already running in this session"
+        };
+        this.runCommandInFlight.add(e), this.bashPtyProcesses.delete(e), this.bashPtyProcesses.set(e, s);
+        try {
+            const o = this.bashPtyBytesReceived.get(e) ?? 0;
+            s.write(`${t}\r`);
+            const f = Date.now() + re;
+            for (; Date.now() < f && await new Promise(u => {
+                    const S = setTimeout(() => {
+                        this.bashPtyDataNotify.delete(e), u(!1)
+                    }, se);
+                    this.bashPtyDataNotify.set(e, () => {
+                        clearTimeout(S), this.bashPtyDataNotify.delete(e), u(!0)
+                    })
+                });)
+                if (!this.bashPtyProcesses.has(e)) return {
+                    error: "Shell exited"
+                };
+            if (!this.bashPtyProcesses.has(e)) return {
+                error: "Shell exited"
+            };
+            const a = this.bashPtyBytesReceived.get(e) ?? 0,
+                g = Math.min(a - o, k),
+                p = ((i = this.bashPtyBuffers.get(e)) == null ? void 0 : i.snapshot()) ?? "",
+                n = p.slice(Math.max(0, p.length - g));
+            return {
+                output: this.cleanPtyOutput(n, t),
+                exitCode: 0
+            }
+        } catch (o) {
+            return {
+                error: o instanceof Error ? o.message : String(o)
+            }
+        } finally {
+            this.runCommandInFlight.delete(e)
+        }
+    }
+    cleanPtyOutput(e, t) {
+        let s = e.replace(ie, "").replace(/\r\n/g, `
+`);
+        const r = s.split(`
+`).map(f => {
+                const a = f.lastIndexOf("\r");
+                return a >= 0 ? f.slice(a + 1) : f
+            }),
+            i = t.trim();
+        for (; r.length > 0 && (r[0].trim() === "" || r[0].trimEnd().endsWith(i));) r.shift();
+        const o = /^[→❯$%#➜]\s|^PS\s.+>\s*$|[✔✓✗✘]\s*$/;
+        for (; r.length > 0 && (r[r.length - 1].trim() === "" || o.test(r[r.length - 1].trim()));) r.pop();
+        return s = r.join(`
+`), s.length > M ? `[output truncated]
+` + s.slice(-M) : s
+    }
+    async waitForTerminalOutput(e, t) {
+        if (!this.shellPtyBuffers.has(e)) return {
+            noShell: !0
+        };
+        const s = j.randomUUID();
+        return new Promise(r => {
+            const i = setTimeout(() => {
+                this.shellOutputWaiters.delete(s), r({
+                    timedOut: !0
+                })
+            }, t);
+            this.shellOutputWaiters.set(s, {
+                sessionId: e,
+                thresholdLength: this.shellPtyBytesReceived.get(e) ?? 0,
+                resolve: r,
+                timer: i
+            })
+        })
+    }
+}
+const oe = {
+    ScrollbackBuffer: x,
+    PTY_EMIT_COALESCE_MS: O,
+    SSH_SHELL_READY_SENTINEL: L
+};
+exports.ShellPtyManager = le;
+exports._test = oe;
+exports.shellPtyKeyFor = I;
+//# sourceMappingURL=index.chunk-Dtoqdu4o.js.map

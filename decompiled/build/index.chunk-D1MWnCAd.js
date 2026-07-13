@@ -1,0 +1,983 @@
+"use strict";
+(function() {
+    try {
+        var s = typeof window < "u" ? window : typeof global < "u" ? global : typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : {};
+        s.SENTRY_RELEASE = {
+            id: "df1d8a339dfabcf359af7144fe142b59ff7d9a0f"
+        }
+    } catch {}
+})();
+try {
+    (function() {
+        var s = typeof window < "u" ? window : typeof global < "u" ? global : typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : {},
+            r = new s.Error().stack;
+        r && (s._sentryDebugIds = s._sentryDebugIds || {}, s._sentryDebugIds[r] = "4039e672-0021-49ea-a46b-50c2e7ef6052", s._sentryDebugIdIdentifier = "sentry-dbid-4039e672-0021-49ea-a46b-50c2e7ef6052")
+    })()
+} catch {}
+Object.defineProperty(exports, Symbol.toStringTag, {
+    value: "Module"
+});
+const le = require("node:crypto"),
+    v = require("node:fs/promises"),
+    $ = require("node:path"),
+    E = require("electron"),
+    o = require("./index.chunk-c42vKsva.js"),
+    D = require("./index.chunk-BJQfDnQY.js"),
+    F = require("./index.chunk-2eoqELgE.js"),
+    w = require("./index.chunk-D4sIQt6U.js"),
+    L = require("./index.chunk-ChePQt0A.js"),
+    j = require("./index.chunk-IUD6Pydn.js");
+
+function N(s) {
+    return {
+        ok: !0,
+        tools: s.tools.map(r => ({
+            name: r.name,
+            description: r.description,
+            inputSchema: r.inputSchema,
+            _meta: r._meta
+        }))
+    }
+}
+async function ce(s, r) {
+    var a;
+    const i = s.builtinMcpRegistry();
+    if (i != null && i.get(r)) return de(s, i, r);
+    const l = s.pendingOAuthMcpConfig(r);
+    if (!l) {
+        const u = (a = s.directMcpServers()) == null ? void 0 : a.find(e => e.config.name === r);
+        return u ? N(u) : {
+            ok: !1,
+            error: `No pending MCP server named "${r}"`
+        }
+    }
+    o.clearLazyReconnectState(r), o.logger.info(`LocalAgentModeSessions.authorizeDirectMcpServer: ${r} — reconnecting (${l.transport})`);
+    try {
+        const u = await o.authorizeDirectMcp(l),
+            e = s.pendingOAuthMcpConfig(r);
+        return !e || o.pluginMcpKey(e) !== o.pluginMcpKey(l) ? (o.hasOAuthConfig(l) && o.clearMcpOAuthTokens(r), u.dispose().catch(() => {}), {
+            ok: !1,
+            cancelled: !0
+        }) : (s.addConnectedDirectMcp(u), o.logger.info(`LocalAgentModeSessions.authorizeDirectMcpServer: ${r} — ok, ${u.tools.length} tools`), N(u))
+    } catch (u) {
+        const e = u instanceof Error ? u.message : String(u);
+        return e === o.OAUTH_CANCELLED_SENTINEL ? (o.logger.info(`LocalAgentModeSessions.authorizeDirectMcpServer: ${r} — cancelled by newer attempt`), {
+            ok: !1,
+            cancelled: !0
+        }) : (o.logger.error(`LocalAgentModeSessions.authorizeDirectMcpServer: ${r} — failed: ${e}`), {
+            ok: !1,
+            error: e
+        })
+    }
+}
+async function de(s, r, i) {
+    r.transition(i, {
+        type: "user-connect"
+    });
+    const l = r.get(i);
+    if (!l) return {
+        ok: !1,
+        error: `No pending MCP server named "${i}"`
+    };
+    if (l.phase === "connected" && l.connection) return N(l.connection);
+    o.logger.info(`LocalAgentModeSessions.authorizeDirectMcpServer: ${i} — reconnecting (builtin)`);
+    try {
+        const a = await D.connectBuiltinMcp(s, i, "connect-click");
+        return o.logger.info(`LocalAgentModeSessions.authorizeDirectMcpServer: ${i} — ok, ${a.tools.length} tools`), N(a)
+    } catch (a) {
+        if (a instanceof D.BuiltinMcpUserDisconnectedError) return o.logger.info(`LocalAgentModeSessions.authorizeDirectMcpServer: ${i} — cancelled by disconnect`), {
+            ok: !1,
+            cancelled: !0
+        };
+        const u = a instanceof Error ? a.message : String(a);
+        return o.logger.error(`LocalAgentModeSessions.authorizeDirectMcpServer: ${i} — failed: ${u}`), {
+            ok: !1,
+            error: u
+        }
+    }
+}
+const ue = "claude_desktop",
+    V = 5e3,
+    I = 3,
+    ge = [1e3, 3e3];
+async function fe(s, r) {
+    if (o.getDeploymentMode().type === "3p") return;
+    const i = await o.getLastActiveOrg().catch(n => {
+            o.logger.warn("[cowork-deletion] getLastActiveOrg failed; sending without org", {
+                error: n
+            })
+        }),
+        l = o.getAccountId() ?? "",
+        a = new Date().toISOString(),
+        u = n => ({
+            event_type: "CoworkSessionDeletionEvent",
+            event_data: {
+                session_id: s,
+                account_uuid: l,
+                organization_uuid: i ?? "",
+                deleted_at: a,
+                inference_log_ids: n
+            }
+        }),
+        e = [];
+    for (let n = 0; n < r.length; n += V) e.push(u(r.slice(n, n + V)));
+    e.length === 0 && e.push(u([]));
+    const t = JSON.stringify({
+        events: e
+    });
+    for (let n = 1; n <= I; n++) {
+        try {
+            const f = await E.net.fetch(`${o.anthropicOriginUrl()}/api/event_logging/v2/batch`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-service-name": ue
+                },
+                body: t,
+                signal: AbortSignal.timeout(15e3)
+            });
+            if (f.ok) return;
+            if (f.status < 500 && f.status !== 429) {
+                o.logger.error("[cowork-deletion] event_logging POST non-retryable: status=%d session=%s", f.status, s);
+                return
+            }
+            o.logger.warn("[cowork-deletion] event_logging POST attempt %d/%d: status=%d session=%s", n, I, f.status, s)
+        } catch (f) {
+            o.logger.warn("[cowork-deletion] event_logging POST attempt %d/%d threw", n, I, {
+                error: f,
+                cliSessionId: s
+            })
+        }
+        const c = ge[n - 1];
+        c && await o.sleep(c)
+    }
+    o.logger.error("[cowork-deletion] event_logging POST exhausted %d attempts session=%s", I, s)
+}
+const pe = 6e4;
+class he {
+    constructor(r = Date.now) {
+        this.warmers = new Map, this.now = r
+    }
+    register(r, i, l) {
+        this.warmers.has(r) && o.logger.warn(`[CoworkIntentWarmer] overwriting existing warmer '${r}'`), this.warmers.set(r, {
+            name: r,
+            warm: i,
+            ttlMs: (l == null ? void 0 : l.ttlMs) ?? pe,
+            keyBySessionId: (l == null ? void 0 : l.keyBySessionId) ?? !1,
+            lastWarmedAt: new Map
+        })
+    }
+    async signalIntent(r) {
+        const i = Array.from(this.warmers.values()),
+            l = await Promise.allSettled(i.map(a => this.maybeWarm(a, r)));
+        for (let a = 0; a < l.length; a++) {
+            const u = l[a];
+            u.status === "rejected" && o.logger.warn(`[CoworkIntentWarmer] '${i[a].name}' rejected for kind=${r.kind}:`, u.reason)
+        }
+    }
+    async maybeWarm(r, i) {
+        const l = r.keyBySessionId ? `${i.kind}:${i.sessionId??""}` : i.kind,
+            a = r.lastWarmedAt.get(l),
+            u = this.now();
+        a !== void 0 && u - a < r.ttlMs || (r.lastWarmedAt.set(l, u), await r.warm(i))
+    }
+}
+const Se = new he;
+async function ee(s, r) {
+    var u;
+    const {
+        ids: i,
+        cliSessionId: l
+    } = await s.extractInferenceLogIds(r), a = ((u = s.getSession(r)) == null ? void 0 : u.cliSessionId) ?? l ?? r;
+    await s.deleteSession(r), await fe(a, i)
+}
+
+function ye(s) {
+    if (!Array.isArray(s)) return;
+    const r = [];
+    for (const i of s) {
+        if (typeof i != "object" || i === null) return;
+        const l = i;
+        if (l.type === "text") {
+            if (typeof l.text != "string") return;
+            r.push({
+                type: "text",
+                text: l.text
+            });
+            continue
+        }
+        if (l.type === "image") {
+            const a = l.source;
+            if (a === null || typeof a != "object" || a.type !== "base64" || typeof a.data != "string" || a.media_type !== "image/jpeg" && a.media_type !== "image/png" && a.media_type !== "image/gif" && a.media_type !== "image/webp") return;
+            r.push({
+                type: "image",
+                source: {
+                    type: "base64",
+                    media_type: a.media_type,
+                    data: a.data
+                }
+            });
+            continue
+        }
+        return
+    }
+    return r
+}
+
+function te(s) {
+    return {
+        names: [...o.getManagedAskToolNamesForCC()],
+        patterns: [...o.getManagedAskToolPatternsForCC()],
+        complete: s.remoteTierApplied || s.health === "never"
+    }
+}
+
+function T(s) {
+    return s.replace(/[\\/]+$/, "")
+}
+async function me(s) {
+    const r = [...o.getAppPreference("localAgentModeTrustedFolders") ?? [], ...await o.getDefaultSelectedWorkspaceFolders()];
+    if (o.isLexicallyWithinAny(s, r)) return !0;
+    if (/^[/\\]{2}/.test(s)) return !1;
+    const i = await Promise.race([(async () => (await o.assertNoUncSymlinkHop(s), v.realpath(s)))().catch(() => null), new Promise(l => {
+        setTimeout(() => l(null), 2e3)
+    })]);
+    return i !== null && o.isLexicallyWithinAny(i, r)
+}
+async function x(s) {
+    try {
+        await o.assertNoUncSymlinkHop(s)
+    } catch {
+        return "Home, root, protected locations, and invalid paths can't be trusted folders. Choose a more specific folder."
+    }
+    const r = E.app.getPath("userData"),
+        i = o.devirtualizeMsixPath(r);
+    if (await F.isCoworkInternalStoragePath(s, r) || i !== r && await F.isCoworkInternalStoragePath(s, i)) return "That folder is Claude's internal storage and can't be a trusted folder.";
+    try {
+        if (!(await v.stat(s)).isDirectory()) return "Only folders can be trusted. Choose a folder instead of a file."
+    } catch {}
+    return null
+}
+const we = 300;
+async function oe(s, r) {
+    var n, c;
+    let i = /^[/\\]{2}/.test(r) ? s : r;
+    const l = await x(i);
+    if (l !== null) return {
+        ok: !1,
+        reason: l
+    };
+    let a = await o.resolveMountCandidate(i),
+        u = !1;
+    if (a === null && (((n = o.getAllowedMountRoots()) == null ? void 0 : n.length) ?? 0) > 0) {
+        u = !0;
+        try {
+            await o.assertNoUncSymlinkHop(i), await v.readdir(i)
+        } catch {}
+        const f = await F.resolveTrustedFolderCandidate(s);
+        if (f === null) return {
+            ok: !1,
+            reason: "Home, root, protected locations, and invalid paths can't be trusted folders. Choose a more specific folder."
+        };
+        i = /^[/\\]{2}/.test(f) ? s : f;
+        const d = await x(i);
+        if (d !== null) return {
+            ok: !1,
+            reason: d
+        };
+        a = await o.resolveMountCandidate(i)
+    }
+    const e = o.getAllowedMountRoots() !== void 0;
+    return (a === null ? !e : e && (a.kind === "local" || a.kind === "cloud-sync") && a.canonical !== i ? !1 : (await o.checkMountPathAllowed(a)).allowed) ? {
+        ok: !0,
+        persistForm: i,
+        tccProbed: u,
+        mountResolved: a
+    } : {
+        ok: !1,
+        reason: a === null ? (((c = o.getAllowedMountRoots()) == null ? void 0 : c.length) ?? 0) === 0 ? "This folder is excluded by your organization's device policy and can't be a trusted folder." : "Claude couldn't verify this folder against your organization's device policy. Make sure the folder exists and Claude has access to its location (System Settings → Privacy & Security → Files and Folders on macOS), then try again." : "This folder is excluded by your organization's device policy and can't be a trusted folder."
+    }
+}
+async function Ae(s, r) {
+    for (const i of s)
+        if (!r.has(i) && o.classifyTccProtectedRoot() !== null) try {
+            await o.assertNoUncSymlinkHop(i), await v.readdir(i)
+        } catch {}
+}
+let q = !1;
+const re = 4 * 1024 * 1024,
+    ke = 1024,
+    Me = 16 * 1024 * 1024;
+
+function ve() {
+    const s = o.getFeatureValue("1707927936", re),
+        r = typeof s == "number" && Number.isFinite(s) && s > 0 ? Math.floor(s) : re;
+    return Math.min(Math.max(r, ke), Me)
+}
+const be = "/uploads/cowork-folders",
+    Le = "/mnt/user-data",
+    Te = 15e3,
+    Fe = 3;
+
+function ne(s, r) {
+    const i = r.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "folder",
+        l = le.createHash("sha256").update(s).digest("hex").slice(0, 12);
+    return `${be}/${i}-${l}/CLAUDE.md`
+}
+async function se(s) {
+    try {
+        if (await o.assertNoUncSymlinkHop(s), (await v.lstat(s)).isSymbolicLink()) return null;
+        const i = await v.realpath(s),
+            l = $.join(i, "CLAUDE.md"),
+            a = await v.lstat(l, {
+                bigint: !0
+            });
+        if (!a.isFile()) return null;
+        const u = await v.open(l, o.O_NOFOLLOW | o.O_NONBLOCK);
+        try {
+            const e = await u.stat({
+                bigint: !0
+            });
+            if (!e.isFile() || e.nlink !== 1n || e.dev !== a.dev || e.ino !== a.ino) return null;
+            const t = ve();
+            return e.size > BigInt(t) ? (o.logger.info(`readFolderClaudeMd: skipping oversize CLAUDE.md (${e.size} bytes)`), null) : {
+                content: (await o.boundedReadFile(u, Number(e.size), t)).toString("utf-8")
+            }
+        } finally {
+            await u.close().catch(() => {})
+        }
+    } catch {
+        return null
+    }
+}
+async function B(s) {
+    if (!q) {
+        q = !0;
+        try {
+            await E.dialog.showMessageBox({
+                type: "error",
+                message: "This folder can't be added",
+                detail: s
+            })
+        } finally {
+            q = !1
+        }
+    }
+}
+
+function Ce(s, r, i) {
+    r.initializeWithAccount();
+    const l = o.getDeploymentMode().onBootstrapStateChange(e => {
+        var t;
+        s.webContents && !s.webContents.isDestroyed() && ((t = i(s.webContents)) == null || t.dispatchOnManagedAskToolNamesChanged(te(e)))
+    });
+    s.webContents.once("destroyed", l);
+    const a = {
+        async start(e) {
+            o.logger.info("LocalAgentModeSessions.start:"), o.setCachedSpSectionPrompts(e.spSectionPrompts);
+            const t = await r.startSession(e);
+            return e.syntheticMessage || r.seedWebFetchProvenance(t, e.message), {
+                sessionId: t
+            }
+        },
+        async sendMessage(e, t, n, c, f, d, p, h, S, A) {
+            o.logger.info(`LocalAgentModeSessions.sendMessage: sessionId=${e}, messageLength=${t.length}, imageCount=${(n==null?void 0:n.length)??0}, fileCount=${(c==null?void 0:c.length)??0}, widgetStates=${(d==null?void 0:d.length)??0}, contentBlocks=${(h==null?void 0:h.length)??0}`), S || r.seedWebFetchProvenance(e, t);
+            let C;
+            h !== void 0 && (C = ye(h), C === void 0 && o.logger.warn("LocalAgentModeSessions.sendMessage: contentBlocks failed shape validation, dropped")), await r.sendMessage(e, t, n, c, f, {
+                toolStates: d,
+                contentBlocks: C,
+                documentFunnelEnabled: A
+            })
+        },
+        async setModel(e, t) {
+            o.logger.info(`LocalAgentModeSessions.setModel: sessionId=${e}, model=${t}`), await r.setModel(e, t)
+        },
+        async setEffort(e, t) {
+            o.logger.info(`LocalAgentModeSessions.setEffort: sessionId=${e}, effortLevel=${t}`), await r.setEffort(e, t)
+        },
+        async setExtendedThinking(e, t) {
+            o.logger.info(`LocalAgentModeSessions.setExtendedThinking: sessionId=${e}, enabled=${t}`), await r.setExtendedThinking(e, t)
+        },
+        async setPermissionMode(e, t, n, c) {
+            return o.logger.info(`LocalAgentModeSessions.setPermissionMode: sessionId=${e}, mode=${t}, chromeSkipAllPermissionChecks=${c==null?void 0:c.chromeSkipAllPermissionChecks}`), r.setPermissionMode(e, t, n, c)
+        },
+        async setChromePermissionMode(e, t) {
+            return o.logger.info(`LocalAgentModeSessions.setChromePermissionMode: sessionId=${e}, mode=${t}`), r.setChromePermissionMode(e, t)
+        },
+        async noteCuWindowMentions(e, t) {
+            o.logger.info(`LocalAgentModeSessions.noteCuWindowMentions: sessionId=${e}, apps=${t.map(n=>n.bundleId).join(",")}`), r.noteCuWindowMentions(e, t)
+        },
+        async stop(e) {
+            o.logger.info(`LocalAgentModeSessions.stop: sessionId=${e}`), await r.stopSession(e)
+        },
+        async stopTask(e, t) {
+            o.logger.info(`LocalAgentModeSessions.stopTask: sessionId=${e}, taskId=${t}`), await r.stopBackgroundTask(e, t)
+        },
+        async rewind(e, t) {
+            return o.logger.info(`LocalAgentModeSessions.rewind: sessionId=${e}, target=${t}`), r.rewindSession(e, t)
+        },
+        async archive(e, t) {
+            o.logger.info(`LocalAgentModeSessions.archive: sessionId=${e}`), await r.archiveSession(e)
+        },
+        async delete(e) {
+            var t;
+            o.logger.info(`LocalAgentModeSessions.delete: sessionId=${e}`), await ee(r, e), await w.clearRemoteSessionFolderGrants(e), await ((t = o.getSessionsBridgeClient()) == null ? void 0 : t.forgetSession(e))
+        },
+        async deleteBridgeSession() {
+            const e = o.getSessionsBridgeClient();
+            if (!e) return o.logger.info("LocalAgentModeSessions.deleteBridgeSession: no bridge instance"), !1;
+            const t = await e.getAllHistoricalLocalSessionIds();
+            if (t.length === 0) return o.logger.info("LocalAgentModeSessions.deleteBridgeSession: no local session IDs; ensuring session (skeleton retry path)"), await e.ensureSession("retry"), !1;
+            const n = t[t.length - 1];
+            o.logger.info(`LocalAgentModeSessions.deleteBridgeSession: wiping ${t.length} gen(s), current=${n}`);
+            for (const c of t) await ee(r, c);
+            return await e.forgetSession(n), !0
+        },
+        async deleteBridgeAgentMemory() {
+            return o.logger.info("LocalAgentModeSessions.deleteBridgeAgentMemory"), r.deleteBridgeAgentMemory()
+        },
+        updateSession(e, t) {
+            o.logger.info(`LocalAgentModeSessions.updateSession: sessionId=${e}, keys=${Object.keys(t).join(",")}`), r.updateSession(e, {
+                ...t,
+                titleSource: t.titleSource === "auto" ? "auto" : "user"
+            })
+        },
+        getSession(e, t) {
+            var c;
+            const n = r.getSession(e);
+            if (n) {
+                const f = r.getBufferedMessages(n.sessionId);
+                if (!(t != null && t.skipReplay))
+                    for (const d of f) s.webContents && !s.webContents.isDestroyed() && ((c = i(s.webContents)) == null || c.dispatchOnEvent({
+                        type: "message",
+                        sessionId: n.sessionId,
+                        message: d
+                    }));
+                return {
+                    ...n,
+                    bufferedMessages: f
+                }
+            }
+            return n
+        },
+        getAll() {
+            return r.getAllSessions()
+        },
+        getTranscript(e, t) {
+            return r.getTranscript(e, t)
+        },
+        searchSessions(e, t) {
+            return r.searchSessions(e, t)
+        },
+        respondToToolPermission(e, t, n) {
+            o.logger.info(`LocalAgentModeSessions.respondToToolPermission: requestId=${e}, decision=${t}, hasUpdatedInput=${n!==void 0}`), o.notificationService.closeAskUserQuestionNotification(e), r.respondToToolPermission(e, t, n)
+        },
+        async openOutputsDir(e) {
+            const t = r.getOutputsDir(e);
+            o.logger.info(`LocalAgentModeSessions.openOutputsDir: sessionId=${e}, outputsDir=${t}`);
+            const n = await E.shell.openPath(o.devirtualizeMsixPath(t));
+            n && o.logger.error(`Failed to open outputs directory: ${t}, error: ${n}`)
+        },
+        async submitTranscriptFeedback(e, t) {
+            return o.isFeatureEnabled("3371831021") ? (o.logger.info(`LocalAgentModeSessions.submitTranscriptFeedback: sessionId=${e}, steps=${t.steps.length}`), r.submitTranscriptFeedback(e, t)) : !1
+        },
+        async getTranscriptFeedback(e) {
+            return o.isFeatureEnabled("3371831021") ? r.getTranscriptFeedback(e) : []
+        },
+        async shareSession(e) {
+            try {
+                o.refuseIfHipaaGated("share_session_export")
+            } catch (t) {
+                return {
+                    success: !1,
+                    error: t.message
+                }
+            }
+            return o.logger.info(`LocalAgentModeSessions.shareSession: sessionId=${e}`), r.shareSession(e)
+        },
+        setDraftSessionFolders(e) {
+            o.logger.info(`LocalAgentModeSessions.setDraftSessionFolders: ${e.length} folders`), r.setDraftSessionFolders(e)
+        },
+        async getDefaultWorkspaceFolders() {
+            const e = await o.getDefaultSelectedWorkspaceFolders();
+            return o.logger.info(`LocalAgentModeSessions.getDefaultWorkspaceFolders: ${e.length} folders`), [...e]
+        },
+        async getSupportedCommands(e) {
+            return o.logger.info(`LocalAgentModeSessions.getSupportedCommands: sessionId=${e==null?void 0:e.sessionId}, cwd=${e==null?void 0:e.cwd}`), r.getSupportedCommands(e)
+        },
+        getTrustedFolders() {
+            const e = o.getAppPreference("localAgentModeTrustedFolders") ?? [];
+            return o.logger.info(`LocalAgentModeSessions.getTrustedFolders: ${e.length} folders`), e
+        },
+        async addTrustedFolder(e) {
+            o.logger.info(`LocalAgentModeSessions.addTrustedFolder: ${e}`);
+            const t = await F.resolveTrustedFolderCandidate(e);
+            if (t === null) {
+                o.logger.warn(`addTrustedFolder rejected: ${e}`), await B("Home, root, protected locations, and invalid paths can't be trusted folders. Choose a more specific folder.");
+                return
+            }
+            let n = /^[/\\]{2}/.test(t) ? e : t;
+            {
+                const d = await x(n);
+                if (d !== null) {
+                    o.logger.warn(`addTrustedFolder rejected (persist form): ${e}`), await B(d);
+                    return
+                }
+                const p = o.getAppPreference("localAgentModeTrustedFolders") ?? [],
+                    h = T(n);
+                if (p.some(S => T(S) === h)) {
+                    if (o.classifyTccProtectedRoot() !== null) try {
+                        await o.assertNoUncSymlinkHop(n), await v.readdir(n)
+                    } catch {}
+                    return
+                }
+            }
+            const c = await oe(e, t);
+            if (!c.ok) {
+                o.logger.warn(`addTrustedFolder rejected: ${e} — ${c.reason}`), await B(c.reason);
+                return
+            }
+            if (n = c.persistForm, !c.tccProbed && o.classifyTccProtectedRoot() !== null) {
+                try {
+                    await o.assertNoUncSymlinkHop(n), await v.readdir(n)
+                } catch {}
+                const d = await x(n);
+                if (d !== null) {
+                    o.logger.warn(`addTrustedFolder rejected (persist form, post-consent): ${e}`), await B(d);
+                    return
+                }
+            }
+            await j.trustedFoldersMutex.runExclusive(async () => {
+                const d = o.getAppPreference("localAgentModeTrustedFolders") ?? [],
+                    p = T(n);
+                if (d.some(A => T(A) === p)) return;
+                const h = 300;
+                let S = [...d, n];
+                S.length > h && (S = S.slice(-h)), await o.setAppPreference("localAgentModeTrustedFolders", S)
+            })
+        },
+        async grantRemoteSessionFolder(e, t) {
+            o.logger.info(`LocalAgentModeSessions.grantRemoteSessionFolder (deprecated shim): ${e}`), await a.grantRemoteSessionFolders(e, [t])
+        },
+        async grantRemoteSessionFolders(e, t) {
+            return o.logger.info(`LocalAgentModeSessions.grantRemoteSessionFolders: ${e} [${t.length}]`), u(e, t)
+        },
+        async browseAndGrantRemoteSessionFolder(e) {
+            o.logger.info(`LocalAgentModeSessions.browseAndGrantRemoteSessionFolder: ${e}`);
+            const t = await F.pickAndValidateMountFolder({
+                dialogTitle: "Add a folder to this session",
+                dialogMessage: "Select a folder to give Claude access to"
+            });
+            if (!t.ok) return {
+                ok: !1,
+                error: t.error
+            };
+            const n = o.mountPathOf(t.resolved),
+                {
+                    granted: c
+                } = await u(e, [n]);
+            return c.length > 0 ? {
+                ok: !0,
+                folderPath: n
+            } : {
+                ok: !1
+            }
+        },
+        async clearRemoteSessionFolderGrants(e) {
+            o.logger.info(`LocalAgentModeSessions.clearRemoteSessionFolderGrants: ${e}`), await w.clearRemoteSessionFolderGrants(e)
+        },
+        async removeTrustedFolder(e) {
+            o.logger.info(`LocalAgentModeSessions.removeTrustedFolder: ${e}`), await w.revokeRemoteSessionFolderEverywhere(e), await j.trustedFoldersMutex.runExclusive(async () => {
+                const t = T(e),
+                    n = p => {
+                        const h = T($.resolve(p));
+                        return process.platform === "win32" ? h.toLowerCase() : h
+                    },
+                    c = n(e),
+                    f = async p => T(p) === t || n(p) === c || await w.realPathsEqualBounded(p, e), d = async p => {
+                        const h = o.getAppPreference(p) ?? [],
+                            S = await Promise.all(h.map(f)),
+                            A = h.filter((C, P) => !S[P]);
+                        A.length !== h.length && await o.setAppPreference(p, A), S.some(Boolean) && A.length > 0 && o.logger.info(`removeTrustedFolder: ${p} — ${A.length} entr${A.length===1?"y":"ies"} retained after removal`)
+                    };
+                await d("localAgentModeTrustedFolders"), await d("remoteFolderConsentMemory")
+            })
+        },
+        async isFolderTrusted(e) {
+            const t = await me(e);
+            return o.logger.info(`LocalAgentModeSessions.isFolderTrusted: ${e} -> ${t}`), t
+        },
+        async addFolderToSession(e, t) {
+            var f, d;
+            if (o.logger.info(`LocalAgentModeSessions.addFolderToSession: sessionId=${e}, path=${t??"(picker)"}`), ((f = r.getSession(e)) == null ? void 0 : f.sessionType) === o.SESSION_TYPE_CHAT) return {
+                ok: !1,
+                error: "Folder access isn't available in chat sessions."
+            };
+            const n = await F.pickAndValidateMountFolder({
+                providedPath: t,
+                dialogTitle: "Add a folder to this session",
+                dialogMessage: "Select a folder to give Claude access to",
+                sessionStorageDir: r.getSessionStorageDir(e),
+                isHostLoopMode: (d = r.getSession(e)) == null ? void 0 : d.hostLoopMode
+            });
+            if (!n.ok) return {
+                ok: !1,
+                error: n.error
+            };
+            const c = await r.mountFolderForSession(e, n.resolved);
+            return c.ok ? {
+                ok: !0,
+                folderPath: o.mountPathOf(n.resolved)
+            } : {
+                ok: !1,
+                error: c.error
+            }
+        },
+        syncSkills() {
+            o.logger.info("LocalAgentModeSessions.syncSkills"), L.skillsPluginManager.triggerSync()
+        },
+        async getLocalSkillFiles(e) {
+            return o.getDeploymentMode().usesLocalSkillStorage() ? L.skillsPluginManager.getLocalSkillFiles(e) : []
+        },
+        async listLocalSkills() {
+            return o.getDeploymentMode().usesLocalSkillStorage() ? (await L.skillsPluginManager.listLocalSkills()).map(t => ({
+                skillId: t.skillId,
+                name: t.name,
+                description: t.description,
+                updatedAt: t.updatedAt ?? void 0,
+                enabled: t.enabled
+            })) : []
+        },
+        async saveLocalSkill(e, t, n, c) {
+            return o.getDeploymentMode().usesLocalSkillStorage() ? L.skillsPluginManager.saveLocalSkill(e, t, n, c) : {
+                ok: !1,
+                error: "Not supported in this build"
+            }
+        },
+        async setLocalSkillEnabled(e, t) {
+            return o.getDeploymentMode().usesLocalSkillStorage() ? L.skillsPluginManager.setLocalSkillEnabled(e, t) : {
+                ok: !1,
+                error: "Not supported in this build"
+            }
+        },
+        async deleteLocalSkill(e) {
+            return o.getDeploymentMode().usesLocalSkillStorage() ? L.skillsPluginManager.deleteLocalSkill(e) : {
+                ok: !1,
+                error: "Not supported in this build"
+            }
+        },
+        async revealLocalSkill(e) {
+            if (o.getDeploymentMode().usesLocalSkillStorage()) return L.skillsPluginManager.revealLocalSkill(e)
+        },
+        async setMcpServers(e, t) {
+            return r.setMcpServers(e, t)
+        },
+        async replaceRemoteMcpServers(e, t) {
+            return r.replaceRemoteMcpServers(e, t)
+        },
+        replaceEnabledMcpTools(e, t) {
+            return r.replaceEnabledMcpTools(e, t)
+        },
+        setFocusedSession(e) {
+            r.setFocusedSession(e ?? null)
+        },
+        signalSessionIntent(e) {
+            const t = e.kind;
+            if (t !== "new" && t !== "resume") {
+                o.logger.warn(`[CoworkIntentWarmer] ignoring unknown intent kind '${t}'`);
+                return
+            }
+            Se.signalIntent({
+                kind: t,
+                sessionId: e.sessionId ?? void 0
+            })
+        },
+        respondDirectoryServers(e, t) {
+            D.handleDirectoryServersResponse(e, t)
+        },
+        respondPluginSearch(e, t) {
+            D.handlePluginSearchResponse(e, t)
+        },
+        respondSlashMenuSkills(e, t) {
+            D.handleSlashMenuSkillsResponse(e, t)
+        },
+        async mcpCallTool(e, t, n, c) {
+            return r.mcpCallTool(e, t, n, c)
+        },
+        async mcpReadResource(e, t, n) {
+            return r.mcpReadResource(e, t, n)
+        },
+        async mcpListResources(e, t) {
+            return r.mcpListResources(e, t)
+        },
+        async directMcpCallTool(e, t, n) {
+            return r.directMcpCallTool(e, t, n)
+        },
+        async directMcpReadResource(e, t) {
+            return r.directMcpReadResource(e, t)
+        },
+        async directMcpListResources(e) {
+            return r.directMcpListResources(e)
+        },
+        async mcpAuthenticate(e, t) {
+            return o.logger.info(`LocalAgentModeSessions.mcpAuthenticate: sessionId=${e}, serverName=${t}`), r.mcpAuthenticate(e, t)
+        },
+        async mcpReconnect(e, t) {
+            return o.logger.info(`LocalAgentModeSessions.mcpReconnect: sessionId=${e}, serverName=${t}`), r.mcpReconnect(e, t)
+        },
+        async mcpSubmitOAuthCallbackUrl(e, t, n) {
+            return o.logger.info(`LocalAgentModeSessions.mcpSubmitOAuthCallbackUrl: sessionId=${e}, serverName=${t}`), r.mcpSubmitOAuthCallbackUrl(e, t, n)
+        },
+        getSessionsForScheduledTask(e) {
+            return o.logger.info(`LocalAgentModeSessions.getSessionsForScheduledTask: scheduledTaskId=${e}`), r.getSessionsForScheduledTask(e).map(t => ({
+                sessionId: t.sessionId,
+                cwd: t.cwd,
+                userSelectedFolders: o.selectedFolderPaths(t),
+                isRunning: o.isRendererRunning(t),
+                model: t.model,
+                createdAt: t.createdAt,
+                lastActivityAt: t.lastActivityAt,
+                isArchived: t.lifecycleState === "archived",
+                title: t.title,
+                error: t.error,
+                initialMessage: t.initialMessage,
+                scheduledTaskId: t.scheduledTaskId
+            }))
+        },
+        async resetBridge() {},
+        async resetBridgeSession() {},
+        async getBridgeConsent() {
+            return !1
+        },
+        async kickBridgePoll() {},
+        async refetchMyAccess() {},
+        async getSessionsBridgeEnabled() {
+            return !0
+        },
+        async setSessionsBridgeEnabled() {},
+        releaseRemoteCuLock() {},
+        async getAppIconForBundleId(e) {
+            try {
+                const {
+                    getComputerUseHostAdapter: t
+                } = await Promise.resolve().then(() => require("./index.chunk-c42vKsva.js")).then(p => p.hostAdapter), {
+                    isComputerUseEnabled: n
+                } = await Promise.resolve().then(() => require("./index.chunk-c42vKsva.js")).then(p => p.gates);
+                if (!o.supportsBridgeComputerUse || !o.isFeatureEnabled("4293378213") || !n()) return null;
+                const c = t().executor,
+                    d = (await c.listInstalledApps()).find(p => p.bundleId === e);
+                return d ? await c.getAppIcon(d.path) ?? null : null
+            } catch (t) {
+                return o.logger.warn("[cu] getAppIconForBundleId failed", {
+                    bundleId: e,
+                    e: t
+                }), null
+            }
+        },
+        requestFolderTccAccess: o.requestFolderTccAccess,
+        requestDocumentsTccAccess: () => o.probeTccRoot(),
+        async startWatchRecording(e, t) {
+            try {
+                const {
+                    startWatchRecording: n
+                } = await Promise.resolve().then(() => require("./index.chunk-c42vKsva.js")).then(c => c.controller);
+                return await n(e, t)
+            } catch (n) {
+                return o.logger.warn("LocalAgentModeSessions.startWatchRecording unavailable", n), o.WatchRecordStartStatus.Cancelled
+            }
+        },
+        async takeHeldWatchRecording() {
+            try {
+                const {
+                    takeHeldWatchRecording: e
+                } = await Promise.resolve().then(() => require("./index.chunk-c42vKsva.js")).then(t => t.controller);
+                return e()
+            } catch (e) {
+                return o.logger.warn("LocalAgentModeSessions.takeHeldWatchRecording unavailable", e), null
+            }
+        },
+        async respondBridgePermissionPreflight() {},
+        getInitialSessionsBridgeStatusState() {
+            return {
+                conflict: !1,
+                dispatchAgentName: null
+            }
+        },
+        async abandonBridgeEnvironment(e) {},
+        async getDirectMcpServerStatuses() {
+            return o.getDeploymentMode().directMcpServerStatuses()
+        },
+        async getManagedAskToolNames() {
+            const e = o.getDeploymentMode();
+            return await e.overlayApplied(), te(e.getBootstrapState())
+        },
+        authorizeDirectMcpServer(e) {
+            return ce(o.getDeploymentMode(), e)
+        },
+        triggerInteractiveAuth(e) {
+            return o.getDeploymentMode().triggerInteractiveAuth({
+                force: e === !0
+            })
+        },
+        async revokeInteractiveAuth() {
+            await o.getDeploymentMode().revokeInteractiveAuth()
+        },
+        cancelInteractiveAuth() {
+            o.getDeploymentMode().cancelInteractiveAuth()
+        },
+        getInitialInteractiveAuthState() {
+            return o.getDeploymentMode().interactiveAuth()
+        },
+        disconnectDirectMcpServer(e) {
+            const t = o.getDeploymentMode().disconnectDirectMcp(e);
+            return o.logger.info(`LocalAgentModeSessions.disconnectDirectMcpServer: ${e} — ${t?"ok":"not found"}`), t
+        }
+    };
+    async function u(e, t) {
+        let n;
+        const c = new Promise(d => {
+                n = d
+            }),
+            f = [];
+        try {
+            if (w.registerPendingSessionGrant(e, c), w.isSessionGrantPoisoned(e)) return o.logger.info(`grantRemoteSessionFolders: session ${e} is being cleared; skipping dialog`), {
+                granted: [],
+                addedDirectoryMountPaths: f
+            };
+            const d = [],
+                p = [],
+                h = [],
+                S = new Set;
+            for (const g of t) {
+                const k = await F.resolveTrustedFolderCandidate(g);
+                if (k === null) {
+                    o.logger.warn(`grantRemoteSessionFolders rejected: ${g}`);
+                    continue
+                }
+                const y = await oe(g, k);
+                if (!y.ok) {
+                    o.logger.warn(`grantRemoteSessionFolders rejected: ${g} — ${y.reason}`);
+                    continue
+                }
+                d.push(y.persistForm), p.push(g), h.push(y.mountResolved), y.tccProbed && S.add(y.persistForm)
+            }
+            if (d.length === 0) return {
+                granted: [],
+                addedDirectoryMountPaths: f
+            };
+            const A = new Set(w.getSessionGrantedFolders(e)),
+                C = o.getAppPreference("remoteFolderConsentMemory") ?? [],
+                P = [],
+                R = [],
+                U = [],
+                W = [],
+                z = [],
+                b = [],
+                G = [];
+            for (let g = 0; g < p.length; g++) A.has($.normalize(p[g])) ? P.push(p[g]) : o.isLexicallyWithinAny(d[g], C) ? (R.push(p[g]), U.push(d[g]), W.push(h[g])) : (z.push(p[g]), b.push(d[g]), G.push(h[g]));
+            let Y = !1,
+                K = !1;
+            if (z.length > 0) {
+                const g = await E.dialog.showMessageBox({
+                    type: "question",
+                    buttons: ["Cancel", "Allow"],
+                    defaultId: 0,
+                    cancelId: 0,
+                    title: "Folder access request",
+                    message: b.length === 1 ? "Allow this Cowork session to access this folder?" : `Allow this Cowork session to access these ${b.length} folders?`,
+                    detail: `${b.join(`
+`)}
+
+Claude will be able to read and modify files here, and run commands that access these folders, for the current session.`,
+                    checkboxLabel: b.length === 1 ? "Don't ask again for this folder on this device" : "Don't ask again for these folders on this device",
+                    checkboxChecked: !1
+                });
+                g.response === 1 ? (R.push(...z), U.push(...b), W.push(...G), Y = g.checkboxChecked) : (K = !0, o.logger.info(`grantRemoteSessionFolders: user declined for ${e}`))
+            }
+            if (R.length > 0 && (await w.grantRemoteSessionFolders(e, R.map((g, k) => {
+                    const y = W[k];
+                    return (y == null ? void 0 : y.kind) === "network-drive" ? {
+                        display: g,
+                        unc: y.unc,
+                        letter: y.letter
+                    } : g
+                })), w.isSessionGrantPoisoned(e))) return {
+                granted: P,
+                addedDirectoryMountPaths: f
+            };
+            if (Y && await j.trustedFoldersMutex.runExclusive(async () => {
+                    const g = o.getAppPreference("remoteFolderConsentMemory") ?? [],
+                        k = [...new Set([...g, ...b])];
+                    await o.setAppPreference("remoteFolderConsentMemory", k.slice(-we))
+                }), n(), await Ae(U, S), !K && o.isFeatureEnabled("144158705") && !o.isCoworkHipaaRestricted()) {
+                const g = AbortSignal.timeout(Te);
+                let k;
+                const {
+                    apiHost: y,
+                    bearer: X
+                } = await Promise.race([w.getCoworkApiAuth(), new Promise(_ => {
+                    if (g.aborted) {
+                        _({
+                            apiHost: "",
+                            bearer: null
+                        });
+                        return
+                    }
+                    k = () => _({
+                        apiHost: "",
+                        bearer: null
+                    }), g.addEventListener("abort", k, {
+                        once: !0
+                    })
+                })]).catch(() => ({
+                    apiHost: "",
+                    bearer: null
+                }));
+                if (k && g.removeEventListener("abort", k), X) {
+                    const _ = [...new Map(p.map((m, M) => [$.normalize(m), M])).values()],
+                        ie = await w.mapWithConcurrency(_, Fe, async m => {
+                            const M = p[m];
+                            let O;
+                            const Q = await Promise.race([se(d[m]), new Promise(Z => {
+                                if (g.aborted) {
+                                    Z(null);
+                                    return
+                                }
+                                O = () => Z(null), g.addEventListener("abort", O, {
+                                    once: !0
+                                })
+                            })]);
+                            if (O && g.removeEventListener("abort", O), Q === null) return null;
+                            const ae = $.basename(M) || $.basename(d[m]);
+                            return {
+                                mountPath: ne(M, ae),
+                                bytes: Buffer.from(Q.content, "utf-8")
+                            }
+                        }),
+                        H = [],
+                        J = [];
+                    for (const m of ie) m && (H.push({
+                        content: () => Promise.resolve(m.bytes),
+                        mountPath: `${Le}${m.mountPath}`,
+                        displayName: "CLAUDE.md"
+                    }), J.push(m.mountPath));
+                    if (H.length > 0) {
+                        const m = await w.stageBlobsToSession(e, y, X, H, g);
+                        for (let M = 0; M < m.length; M++) m[M].ok ? f.push(J[M]) : o.logger.warn(`grantRemoteSessionFolders: CLAUDE.md stage failed (${m[M].error??"upload failed"})`)
+                    }
+                }
+            }
+            return {
+                granted: [...P, ...R],
+                addedDirectoryMountPaths: f
+            }
+        } finally {
+            n()
+        }
+    }
+    return a
+}
+exports.buildFolderClaudeMdMountPath = ne;
+exports.createLocalAgentModeSessionsApi = Ce;
+exports.readFolderClaudeMd = se;
+//# sourceMappingURL=index.chunk-D1MWnCAd.js.map

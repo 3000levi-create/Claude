@@ -1,0 +1,9696 @@
+"use strict";
+var Ft = (e, r) => (r = Symbol[e]) ? r : Symbol.for("Symbol." + e),
+    qt = e => {
+        throw TypeError(e)
+    };
+var jt = (e, r, t) => {
+        if (r != null) {
+            typeof r != "object" && typeof r != "function" && qt("Object expected");
+            var o, i;
+            t && (o = r[Ft("asyncDispose")]), o === void 0 && (o = r[Ft("dispose")], t && (i = o)), typeof o != "function" && qt("Object not disposable"), i && (o = function() {
+                try {
+                    i.call(this)
+                } catch (s) {
+                    return Promise.reject(s)
+                }
+            }), e.push([t, o, r])
+        } else t && e.push([t]);
+        return r
+    },
+    Bt = (e, r, t) => {
+        var o = typeof SuppressedError == "function" ? SuppressedError : function(a, l, c, d) {
+                return d = Error(c), d.name = "SuppressedError", d.error = a, d.suppressed = l, d
+            },
+            i = a => r = t ? new o(a, r, "An error was suppressed during disposal") : (t = !0, a),
+            s = a => {
+                for (; a = e.pop();) try {
+                    var l = a[1] && a[1].call(a[2]);
+                    if (a[0]) return Promise.resolve(l).then(s, c => (i(c), s()))
+                } catch (c) {
+                    i(c)
+                }
+                if (t) throw r
+            };
+        return s()
+    };
+(function() {
+    try {
+        var e = typeof window < "u" ? window : typeof global < "u" ? global : typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : {};
+        e.SENTRY_RELEASE = {
+            id: "df1d8a339dfabcf359af7144fe142b59ff7d9a0f"
+        }
+    } catch {}
+})();
+try {
+    (function() {
+        var e = typeof window < "u" ? window : typeof global < "u" ? global : typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : {},
+            r = new e.Error().stack;
+        r && (e._sentryDebugIds = e._sentryDebugIds || {}, e._sentryDebugIds[r] = "e8856b4c-8b50-4b3e-98e5-f47755a82d8b", e._sentryDebugIdIdentifier = "sentry-dbid-e8856b4c-8b50-4b3e-98e5-f47755a82d8b")
+    })()
+} catch {}
+const n = require("./index.chunk-c42vKsva.js"),
+    H = require("node:fs/promises"),
+    j = require("node:fs"),
+    N = require("node:path");
+require("node:timers/promises");
+const yr = require("node:os"),
+    K = require("electron"),
+    gn = require("./index.chunk-ZXPKeP3a.js"),
+    ce = require("./index.chunk-CvbeGVMj.js"),
+    yt = require("node:crypto"),
+    yn = require("./index.chunk-ChePQt0A.js"),
+    de = require("./index.chunk-BLNdD7Yt.js"),
+    wn = require("node:events"),
+    Y = require("./index.chunk-BJQfDnQY.js"),
+    G = require("./index.chunk-bem6RoHM.js"),
+    Le = require("./index.chunk-Cp81FYE3.js"),
+    _n = require("./index.chunk-BimimalO.js"),
+    vn = require("node:util");
+
+function wt(e) {
+    const r = Object.create(null, {
+        [Symbol.toStringTag]: {
+            value: "Module"
+        }
+    });
+    if (e) {
+        for (const t in e)
+            if (t !== "default") {
+                const o = Object.getOwnPropertyDescriptor(e, t);
+                Object.defineProperty(r, t, o.get ? o : {
+                    enumerable: !0,
+                    get: () => e[t]
+                })
+            }
+    }
+    return r.default = e, Object.freeze(r)
+}
+const Sn = wt(j),
+    bn = wt(N),
+    Tn = wt(yt);
+
+function kn() {
+    return n.isFeatureEnabled("2051751800")
+}
+const Ze = "__token_usage";
+
+function wr() {
+    const e = n.getDeploymentMode().orgUuidOverride();
+    return e ? n.getCoworkAccountSettingsFile(n.maybeGetStaticInstallID(), e) : null
+}
+async function En(e) {
+    try {
+        const r = await H.readFile(e, "utf-8");
+        return JSON.parse(r)
+    } catch {
+        return null
+    }
+}
+
+function Ht() {
+    return {
+        windowStartMs: Date.now(),
+        inputTokens: 0,
+        outputTokens: 0
+    }
+}
+
+function _r(e, r) {
+    if (typeof e != "object" || e === null || typeof e.windowStartMs != "number" || typeof e.inputTokens != "number" || typeof e.outputTokens != "number") return Ht();
+    const t = e;
+    if (t.windowStartMs > Date.now()) return {
+        ...t,
+        windowStartMs: Date.now()
+    };
+    const o = r * 3600 * 1e3;
+    return Date.now() >= t.windowStartMs + o ? Ht() : t
+}
+async function Cn(e, r) {
+    const t = n.getManagedConfig().tokenLimits;
+    if ((t == null ? void 0 : t.windowHours) === void 0 || t.maxPerWindow === void 0) return;
+    const {
+        maxPerWindow: o,
+        windowHours: i
+    } = t, s = wr();
+    s && await n.accountSettingsMutex.runExclusive(async () => {
+        let a;
+        try {
+            a = JSON.parse(await H.readFile(s, "utf-8"))
+        } catch (u) {
+            if (!(u instanceof SyntaxError) && u.code !== "ENOENT") {
+                n.logger.warn("[TokenCap] settings read failed (non-ENOENT); skipping accumulate");
+                return
+            }
+            a = {}
+        }
+        const l = typeof a == "object" && a !== null && !Array.isArray(a) ? a : {},
+            c = _r(l[Ze], i),
+            d = {
+                windowStartMs: c.windowStartMs,
+                inputTokens: c.inputTokens + e,
+                outputTokens: c.outputTokens + r
+            };
+        await n.writeJsonAtomic(s, {
+            ...l,
+            [Ze]: d
+        }), n.logger.info(`[TokenCap] accumulated ${e}+${r} tokens (window total: ${d.inputTokens+d.outputTokens}/${o})`)
+    })
+}
+async function An() {
+    const e = n.getManagedConfig().tokenLimits;
+    if ((e == null ? void 0 : e.windowHours) === void 0 || e.maxPerWindow === void 0) return {
+        over: !1
+    };
+    const {
+        maxPerWindow: r,
+        windowHours: t
+    } = e, o = wr();
+    if (!o) return {
+        over: !1
+    };
+    const i = await En(o) ?? {},
+        s = _r(i[Ze], t),
+        a = s.inputTokens + s.outputTokens;
+    return a < r ? {
+        over: !1
+    } : {
+        over: !0,
+        used: a,
+        cap: r,
+        windowHours: t
+    }
+}
+const Pn = `Add a framebuffer entry to .claude/launch.json (configurations[]) or drop a single-entry JSON file in .claude/launch.d/: {"name": "<name>", "type": "framebuffer", "vncUrl": "vnc://[:pw@]host:port", "serverFlavor": "standard"|"vz"}. serverFlavor controls the Cmd/Option keysym mapping — "vz" for Apple Virtualization.framework hosts, "standard" for everything else. Scripts that boot a source should write to launch.d/ so they don't have to merge into the user-edited launch.json.`,
+    vr = "Framebuffer",
+    Rn = ["framebuffer_list", "framebuffer_attach", "framebuffer_screenshot", "framebuffer_zoom", "framebuffer_cursor_position"],
+    ne = "Coordinates are read directly from the most recent framebuffer_screenshot image. The server handles all scaling. Do NOT scale coordinates yourself.",
+    z = {
+        name: {
+            type: "string",
+            description: "Source name."
+        }
+    },
+    In = [{
+        name: "framebuffer_list",
+        description: 'List framebuffer sources defined in .claude/launch.json (type:"framebuffer") plus any running vm-run.sh sessions. ' + Pn,
+        inputSchema: {
+            type: "object",
+            properties: {}
+        }
+    }, {
+        name: "framebuffer_attach",
+        description: "Connect to a named framebuffer source and open it in the user's preview panel so they see the live screen. Returns the source dimensions. Subsequent framebuffer_* calls operate on the same session the user is watching.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    description: "Source name from framebuffer_list / launch.json."
+                }
+            },
+            required: ["name"]
+        }
+    }, {
+        name: "framebuffer_screenshot",
+        description: "Capture the current frame as a JPEG, downscaled to a fixed display width. Returns the image AND the display/source dimensions. Use this to see what's on the screen before deciding what to click or type. Requires framebuffer_attach first. " + ne,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z
+            },
+            required: ["name"]
+        }
+    }, {
+        name: "framebuffer_zoom",
+        description: "Return a cropped region of the LAST framebuffer_screenshot at full source resolution, for reading small text. Does NOT take a new capture. " + ne + " Click coordinates still refer to the full screenshot, not the crop.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                x: {
+                    type: "number",
+                    description: "Left edge, image px."
+                },
+                y: {
+                    type: "number",
+                    description: "Top edge, image px."
+                },
+                width: {
+                    type: "number",
+                    description: "Crop width, image px."
+                },
+                height: {
+                    type: "number",
+                    description: "Crop height, image px."
+                }
+            },
+            required: ["name", "x", "y", "width", "height"]
+        }
+    }, {
+        name: "framebuffer_cursor_position",
+        description: "Return the last pointer position this server sent, in image-pixel coordinates. The guest does not report its cursor; this is the server's record of where it last moved the pointer.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z
+            },
+            required: ["name"]
+        }
+    }],
+    Mn = [{
+        name: "framebuffer_click",
+        description: `Click at (x, y). ${ne} The user will see this happen live in their panel and will be asked to approve. If the pixels under (x, y) have changed since the last screenshot the click is refused — take a new framebuffer_screenshot first.`,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                x: {
+                    type: "number",
+                    description: "X in image pixels."
+                },
+                y: {
+                    type: "number",
+                    description: "Y in image pixels."
+                },
+                button: {
+                    type: "string",
+                    enum: ["left", "middle", "right"],
+                    description: "Defaults to left."
+                },
+                count: {
+                    type: "number",
+                    enum: [1, 2, 3],
+                    description: "1=single, 2=double, 3=triple. Defaults to 1."
+                },
+                modifiers: {
+                    type: "array",
+                    items: {
+                        type: "string"
+                    },
+                    description: 'Modifier keys held during the click, e.g. ["Meta","Shift"]. Use DOM key names: "Meta", "Shift", "Control", "Alt".'
+                }
+            },
+            required: ["name", "x", "y"]
+        }
+    }, {
+        name: "framebuffer_move",
+        description: `Move the pointer to (x, y) without clicking (hover). ${ne}`,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                x: {
+                    type: "number"
+                },
+                y: {
+                    type: "number"
+                }
+            },
+            required: ["name", "x", "y"]
+        }
+    }, {
+        name: "framebuffer_drag",
+        description: `Press at \`from\`, move to \`to\` in a few steps, release. ${ne} If the pixels under \`from\` have changed since the last screenshot the drag is refused.`,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                from: {
+                    type: "object",
+                    properties: {
+                        x: {
+                            type: "number"
+                        },
+                        y: {
+                            type: "number"
+                        }
+                    },
+                    required: ["x", "y"]
+                },
+                to: {
+                    type: "object",
+                    properties: {
+                        x: {
+                            type: "number"
+                        },
+                        y: {
+                            type: "number"
+                        }
+                    },
+                    required: ["x", "y"]
+                },
+                button: {
+                    type: "string",
+                    enum: ["left", "middle", "right"],
+                    description: "Defaults to left."
+                }
+            },
+            required: ["name", "from", "to"]
+        }
+    }, {
+        name: "framebuffer_scroll",
+        description: `Move the pointer to (x, y) then scroll the wheel. ${ne}`,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                x: {
+                    type: "number"
+                },
+                y: {
+                    type: "number"
+                },
+                direction: {
+                    type: "string",
+                    enum: ["up", "down", "left", "right"]
+                },
+                amount: {
+                    type: "number",
+                    description: "Wheel notches. 3 ≈ one screenful in most apps."
+                }
+            },
+            required: ["name", "x", "y", "direction", "amount"]
+        }
+    }, {
+        name: "framebuffer_type",
+        description: `Type a literal string into the active focus. Each character is a press+release. "\\n" → Enter, "\\t" → Tab. The user will see the exact text in the approval prompt before it's sent.`,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                text: {
+                    type: "string",
+                    description: "Text to type."
+                }
+            },
+            required: ["name", "text"]
+        }
+    }, {
+        name: "framebuffer_key",
+        description: `Press a key chord (e.g. "Meta+Shift+t", "Enter", "Escape"). Chord is "+"-separated; the terminal segment is the key, leading segments are held modifiers. The user approves before it's sent.`,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                chord: {
+                    type: "string"
+                },
+                repeat: {
+                    type: "number",
+                    description: "Press the chord this many times. Defaults to 1."
+                }
+            },
+            required: ["name", "chord"]
+        }
+    }, {
+        name: "framebuffer_hold_key",
+        description: "Hold a single key down for `durationMs`, then release. Use for key-repeat (arrow keys) or modifier-hold sequences.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                key: {
+                    type: "string",
+                    description: 'e.g. "ArrowDown", "Shift".'
+                },
+                durationMs: {
+                    type: "number"
+                }
+            },
+            required: ["name", "key", "durationMs"]
+        }
+    }, {
+        name: "framebuffer_batch",
+        description: "Execute a sequence of input actions in ONE tool call. Actions execute sequentially and stop on the first error. Use this whenever you can predict the outcome of several actions ahead — e.g. click a field, type into it, press Enter. " + ne,
+        inputSchema: {
+            type: "object",
+            properties: {
+                ...z,
+                actions: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 50,
+                    items: {
+                        type: "object",
+                        properties: {
+                            action: {
+                                type: "string",
+                                enum: ["click", "type", "key", "move", "scroll", "drag", "hold_key"]
+                            },
+                            args: {
+                                type: "object",
+                                description: `Same shape as the corresponding framebuffer_* tool's input, minus "name".`
+                            }
+                        },
+                        required: ["action", "args"]
+                    }
+                }
+            },
+            required: ["name", "actions"]
+        }
+    }];
+
+function xn() {
+    const e = n.isFeatureEnabled("4141490266") || !1;
+    return [...In, ...e ? Mn : []].map(r => ({
+        name: r.name,
+        description: r.description,
+        inputSchema: r.inputSchema
+    }))
+}
+const On = `// Content script that defines the accessibility tree generation function in the MAIN context
+
+(function () {
+  // Initialize global element map and ref counter if not already present
+  if (!window.__claudeElementMap) {
+    window.__claudeElementMap = {};
+  }
+  // O(1) Element → ref lookup. Avoids the previous O(n²) linear scan of
+  // __claudeElementMap on every included element. WeakMap so GC'd elements
+  // drop out automatically. Initialised independently so a page that already
+  // has __claudeElementMap from a previous injection still gets the index.
+  if (!window.__claudeElementReverseMap) {
+    window.__claudeElementReverseMap = new WeakMap();
+  }
+  if (!window.__claudeRefCounter) {
+    window.__claudeRefCounter = 0;
+  }
+
+  // Define the accessibility tree generation function on the window (in content script context)
+  window.__generateAccessibilityTree = function (
+    filterType,
+    maxDepth,
+    maxChars,
+    refId,
+  ) {
+    try {
+      var result = [];
+      var effectiveMaxDepth =
+        maxDepth !== undefined && maxDepth !== null ? maxDepth : 15;
+
+      function getRole(element) {
+        var role = element.getAttribute("role");
+        if (role) return role;
+
+        var tag = element.tagName.toLowerCase();
+        var type = element.getAttribute("type");
+
+        var roleMap = {
+          a: "link",
+          button: "button",
+          input:
+            type === "submit" || type === "button"
+              ? "button"
+              : type === "checkbox"
+                ? "checkbox"
+                : type === "radio"
+                  ? "radio"
+                  : type === "file"
+                    ? "button"
+                    : "textbox",
+          select: "combobox",
+          textarea: "textbox",
+          h1: "heading",
+          h2: "heading",
+          h3: "heading",
+          h4: "heading",
+          h5: "heading",
+          h6: "heading",
+          img: "image",
+          nav: "navigation",
+          main: "main",
+          header: "banner",
+          footer: "contentinfo",
+          section: "region",
+          article: "article",
+          aside: "complementary",
+          form: "form",
+          table: "table",
+          ul: "list",
+          ol: "list",
+          li: "listitem",
+          label: "label",
+        };
+
+        return roleMap[tag] || "generic";
+      }
+
+      // password / hidden / OTP / credit-card field values must never be
+      // serialized into the tree — find/read_page send the tree to the model.
+      function isSensitiveInput(element) {
+        var type = (element.getAttribute("type") || "").toLowerCase();
+        if (type === "password" || type === "hidden") return true;
+
+        var autocomplete = (
+          element.getAttribute("autocomplete") || ""
+        ).toLowerCase();
+        var sensitiveAutocomplete = [
+          "current-password",
+          "new-password",
+          "one-time-code",
+          "cc-number",
+          "cc-csc",
+          "cc-exp",
+          "cc-exp-month",
+          "cc-exp-year",
+        ];
+        for (var i = 0; i < sensitiveAutocomplete.length; i++) {
+          if (autocomplete.indexOf(sensitiveAutocomplete[i]) !== -1)
+            return true;
+        }
+        return false;
+      }
+
+      // Direct text-node children only — used for label[for] resolution so a
+      // wrapping <label> doesn't pull in nested <option>/<textarea> text.
+      function directTextOf(el) {
+        var t = "";
+        for (var i = 0; i < el.childNodes.length; i++) {
+          if (el.childNodes[i].nodeType === Node.TEXT_NODE)
+            t += el.childNodes[i].textContent;
+        }
+        return t.trim();
+      }
+
+      function getCleanName(element) {
+        var tag = element.tagName.toLowerCase();
+
+        // For selects, get the selected option text
+        if (tag === "select") {
+          if (isSensitiveInput(element)) {
+            // Preserve identifying labels (parity with the input flow below);
+            // only redact the selected value.
+            var selAria = element.getAttribute("aria-label");
+            if (selAria && selAria.trim()) return selAria.trim();
+            var selTitle = element.getAttribute("title");
+            if (selTitle && selTitle.trim()) return selTitle.trim();
+            if (element.id) {
+              var selLabel = document.querySelector(
+                'label[for="' + element.id + '"]',
+              );
+              if (selLabel) {
+                var selLabelText = directTextOf(selLabel);
+                if (selLabelText) return selLabelText;
+              }
+            }
+            return "[value redacted]";
+          }
+          var selectElement = element;
+          var selectedOption =
+            selectElement.querySelector("option[selected]") ||
+            selectElement.options[selectElement.selectedIndex];
+          if (selectedOption && selectedOption.textContent) {
+            return selectedOption.textContent.trim();
+          }
+        }
+
+        // Priority order for getting meaningful names
+        var ariaLabel = element.getAttribute("aria-label");
+        if (ariaLabel && ariaLabel.trim()) return ariaLabel.trim();
+
+        var placeholder = element.getAttribute("placeholder");
+        if (placeholder && placeholder.trim()) return placeholder.trim();
+
+        var title = element.getAttribute("title");
+        if (title && title.trim()) return title.trim();
+
+        var alt = element.getAttribute("alt");
+        if (alt && alt.trim()) return alt.trim();
+
+        // For form labels
+        if (element.id) {
+          var label = document.querySelector('label[for="' + element.id + '"]');
+          if (label) {
+            var labelText = directTextOf(label);
+            if (labelText) return labelText;
+          }
+        }
+
+        // For inputs with values
+        if (tag === "input") {
+          var inputElement = element;
+          var type = element.getAttribute("type") || "";
+          var value = element.getAttribute("value");
+
+          if (type === "submit" && value && value.trim()) {
+            return value.trim();
+          }
+
+          if (isSensitiveInput(element)) {
+            return inputElement.value ? "[value redacted]" : "";
+          }
+
+          if (
+            inputElement.value &&
+            inputElement.value.length < 50 &&
+            inputElement.value.trim()
+          ) {
+            return inputElement.value.trim();
+          }
+        }
+
+        if (tag === "textarea" && isSensitiveInput(element)) {
+          return element.value ? "[value redacted]" : "";
+        }
+
+        // For buttons, links, and other interactive elements, get direct text
+        if (["button", "a", "summary"].includes(tag)) {
+          var directText = "";
+          for (var i = 0; i < element.childNodes.length; i++) {
+            var node = element.childNodes[i];
+            if (node.nodeType === Node.TEXT_NODE) {
+              directText += node.textContent;
+            }
+          }
+          if (directText.trim()) return directText.trim();
+        }
+
+        // For headings, get text content but limit it
+        if (tag.match(/^h[1-6]$/)) {
+          var headingText = element.textContent;
+          if (headingText && headingText.trim()) {
+            return headingText.trim().substring(0, 100);
+          }
+        }
+
+        // ignore images without an "alt"
+        if (tag === "img") {
+          return "";
+        }
+
+        // For generic elements, get direct text content (not including child elements)
+        // This helps capture important text in spans, divs, etc.
+        var directTextContent = "";
+        for (var j = 0; j < element.childNodes.length; j++) {
+          var childNode = element.childNodes[j];
+          if (childNode.nodeType === Node.TEXT_NODE) {
+            directTextContent += childNode.textContent;
+          }
+        }
+
+        if (
+          directTextContent &&
+          directTextContent.trim() &&
+          directTextContent.trim().length >= 3
+        ) {
+          // Only return if it's meaningful text (at least 3 characters)
+          var trimmedText = directTextContent.trim();
+          if (trimmedText.length > 100) {
+            return trimmedText.substring(0, 100) + "...";
+          }
+          return trimmedText;
+        }
+
+        return "";
+      }
+
+      function isVisible(element) {
+        var style = window.getComputedStyle(element);
+        return (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          style.opacity !== "0" &&
+          element.offsetWidth > 0 &&
+          element.offsetHeight > 0
+        );
+      }
+
+      function isInteractive(element) {
+        var tag = element.tagName.toLowerCase();
+        var interactiveTags = [
+          "a",
+          "button",
+          "input",
+          "select",
+          "textarea",
+          "details",
+          "summary",
+        ];
+
+        return (
+          interactiveTags.includes(tag) ||
+          element.getAttribute("onclick") !== null ||
+          element.getAttribute("tabindex") !== null ||
+          element.getAttribute("role") === "button" ||
+          element.getAttribute("role") === "link" ||
+          element.getAttribute("contenteditable") === "true"
+        );
+      }
+
+      function isSemantic(element) {
+        var tag = element.tagName.toLowerCase();
+        var semanticTags = [
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "h5",
+          "h6",
+          "nav",
+          "main",
+          "header",
+          "footer",
+          "section",
+          "article",
+          "aside",
+        ];
+        return (
+          semanticTags.includes(tag) || element.getAttribute("role") !== null
+        );
+      }
+
+      function shouldIncludeElement(element, options) {
+        var tag = element.tagName.toLowerCase();
+
+        // Always skip these
+        if (
+          ["script", "style", "meta", "link", "title", "noscript"].includes(tag)
+        )
+          return false;
+        if (
+          options.filter !== "all" &&
+          element.getAttribute("aria-hidden") === "true"
+        )
+          return false;
+
+        // Check visibility unless using 'all' filter (which includes non-visible elements)
+        if (options.filter !== "all" && !isVisible(element)) return false;
+
+        // Skip viewport visibility check when refId is specified (we want all children of the ref element)
+        // or when using 'all' filter
+        if (options.filter !== "all" && !options.refId) {
+          var rect = element.getBoundingClientRect();
+          var inViewport =
+            rect.top < window.innerHeight &&
+            rect.bottom > 0 &&
+            rect.left < window.innerWidth &&
+            rect.right > 0;
+          if (!inViewport) return false;
+        }
+
+        // Apply interactive filter if specified
+        if (options.filter === "interactive") {
+          return isInteractive(element);
+        }
+
+        // Default behavior when no filter is specified (all visible elements)
+        // Always include interactive elements
+        if (isInteractive(element)) return true;
+
+        // Always include semantic elements (headings, nav, etc.)
+        if (isSemantic(element)) return true;
+
+        // Include elements with meaningful text content
+        if (getCleanName(element).length > 0) return true;
+
+        var elementRole = getRole(element);
+        if (
+          elementRole !== null &&
+          elementRole !== "generic" &&
+          elementRole !== "image"
+        ) {
+          return true;
+        }
+
+        return false;
+      }
+
+      // Hard cap on included elements per walk. Depth is already capped, but
+      // a wide flat DOM (infinite-scroll feeds, huge tables) can still pin
+      // the main thread past the 45s executeScript race. 10k is well above
+      // typical pages and below the point where serialization alone is slow.
+      var MAX_INCLUDED_NODES = 10000;
+      var includedNodeCount = 0;
+
+      function processElement(element, depth, options) {
+        if (includedNodeCount >= MAX_INCLUDED_NODES) return;
+        if (depth > effectiveMaxDepth) return; // Use configurable depth limit
+        if (!element || !element.tagName) return;
+
+        var shouldInclude =
+          shouldIncludeElement(element, options) ||
+          (options.refId !== null && depth === 0);
+
+        if (shouldInclude) {
+          var role = getRole(element);
+          var name = getCleanName(element);
+
+          var ref = window.__claudeElementReverseMap.get(element) || null;
+          // The reverse map is weak, but the forward map's WeakRef may have
+          // been swept while a stale reverse entry survived (different GC
+          // timing). Verify the forward entry still points at this element.
+          if (ref) {
+            var fwd = window.__claudeElementMap[ref];
+            if (!fwd || fwd.deref() !== element) ref = null;
+          }
+
+          // If not found, create a new ref
+          if (!ref) {
+            ref = "ref_" + ++window.__claudeRefCounter;
+            window.__claudeElementMap[ref] = new WeakRef(element);
+            window.__claudeElementReverseMap.set(element, ref);
+          }
+          includedNodeCount++;
+
+          var yaml = " ".repeat(depth) + role;
+
+          if (name) {
+            // Clean up the name - remove newlines, limit length
+            name = name.replace(/\\s+/g, " ").substring(0, 100);
+            yaml += ' "' + name.replace(/"/g, '\\\\"') + '"';
+          }
+
+          yaml += " [" + ref + "]";
+
+          // Add useful attributes
+          if (element.getAttribute("href"))
+            yaml += ' href="' + element.getAttribute("href") + '"';
+          if (element.getAttribute("type"))
+            yaml += ' type="' + element.getAttribute("type") + '"';
+          if (element.getAttribute("placeholder"))
+            yaml +=
+              ' placeholder="' + element.getAttribute("placeholder") + '"';
+
+          result.push(yaml);
+
+          // For select elements, add options as children
+          var tag = element.tagName.toLowerCase();
+          if (tag === "select" && !isSensitiveInput(element)) {
+            var selectElement = element;
+            var selectOptions = selectElement.options;
+            for (var optIdx = 0; optIdx < selectOptions.length; optIdx++) {
+              var opt = selectOptions[optIdx];
+              var optYaml = " ".repeat(depth + 1) + "option";
+              var optText = opt.textContent ? opt.textContent.trim() : "";
+              if (optText) {
+                optText = optText.replace(/\\s+/g, " ").substring(0, 100);
+                optYaml += ' "' + optText.replace(/"/g, '\\\\"') + '"';
+              }
+              // Mark selected option
+              if (opt.selected) {
+                optYaml += " (selected)";
+              }
+              // Add value if different from text
+              if (opt.value && opt.value !== optText) {
+                optYaml += ' value="' + opt.value.replace(/"/g, '\\\\"') + '"';
+              }
+              result.push(optYaml);
+            }
+          }
+        }
+
+        // Don't recurse into a sensitive <select> — option text would leak via
+        // the generic child path even though the option-loop above is gated.
+        var elTag = element.tagName.toLowerCase();
+        if (elTag === "select" && isSensitiveInput(element)) return;
+
+        // Always traverse children - we need to go deep to find interactive elements
+        if (element.children && depth < effectiveMaxDepth) {
+          for (var i = 0; i < element.children.length; i++) {
+            processElement(
+              element.children[i],
+              shouldInclude ? depth + 1 : depth,
+              options,
+            );
+          }
+        }
+      }
+
+      var options = {
+        filter: filterType || "all", // Default to "all" if no filter specified
+        refId: refId,
+      };
+
+      // If refId is specified, find that element and process it
+      if (refId) {
+        var weakRef = window.__claudeElementMap[refId];
+        if (!weakRef) {
+          return {
+            error:
+              "Element with ref_id '" +
+              refId +
+              "' not found. It may have been removed from the page. Use read_page without ref_id to get the current page state.",
+            pageContent: "",
+            viewport: {
+              width: window.innerWidth,
+              height: window.innerHeight,
+            },
+          };
+        }
+
+        var targetElement = weakRef.deref();
+        if (!targetElement) {
+          return {
+            error:
+              "Element with ref_id '" +
+              refId +
+              "' no longer exists. It may have been removed from the page. Use read_page without ref_id to get the current page state.",
+            pageContent: "",
+            viewport: {
+              width: window.innerWidth,
+              height: window.innerHeight,
+            },
+          };
+        }
+
+        processElement(targetElement, 0, options);
+      } else if (document.body) {
+        processElement(document.body, 0, options);
+      }
+
+      // Clean up stale references (elements that have been garbage collected)
+      for (var ref in window.__claudeElementMap) {
+        var elementWeakRef = window.__claudeElementMap[ref];
+        if (!elementWeakRef.deref()) {
+          delete window.__claudeElementMap[ref];
+        }
+      }
+
+      var pageContent = result.join("\\n");
+
+      if (includedNodeCount >= MAX_INCLUDED_NODES) {
+        var truncHint = refId
+          ? "use a smaller depth or focus on a more specific child element"
+          : "use a refId or smaller depth to focus";
+        pageContent +=
+          "\\n[truncated at " +
+          MAX_INCLUDED_NODES +
+          " elements — page is very large; " +
+          truncHint +
+          "]";
+      }
+
+      // Character count limit (skip if maxCharacters is null/undefined).
+      // Truncate rather than error — pageContent is fully built and already
+      // redacted at this point, so returning a prefix is strictly more useful
+      // than discarding it. Cut at a newline boundary: the output is
+      // line-oriented, and a mid-line cut would leave a dangling partial node.
+      if (maxChars != null && pageContent.length > maxChars) {
+        var fullLength = pageContent.length;
+        var cutAt = pageContent.lastIndexOf("\\n", maxChars);
+        if (cutAt <= 0) {
+          // No newline at or before maxChars. Clamp so a nonsensical
+          // negative maxChars can't become a negative slice end, which would
+          // mean "all but the last N characters" and return nearly everything.
+          cutAt = Math.max(0, maxChars);
+        }
+        var focusHint = refId
+          ? "use a smaller depth or focus on a more specific child element"
+          : "use ref_id or a smaller depth to focus";
+        pageContent =
+          pageContent.slice(0, cutAt) +
+          "\\n[output truncated at " +
+          maxChars +
+          " of " +
+          fullLength +
+          " characters. Pass a larger max_chars (default 50000) to see more, or " +
+          focusHint +
+          ".]";
+      }
+
+      return {
+        pageContent: pageContent,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        },
+      };
+    } catch (error) {
+      console.error("Error in accessibility tree generation:", error);
+      throw new Error(
+        "Error generating accessibility tree: " +
+          (error.message || "Unknown error"),
+      );
+    }
+  };
+})();
+`;
+
+function Sr(e) {
+    if (!e) return 0;
+    let r = 0;
+    for (const t of e.toLowerCase().split("+")) t === "alt" ? r |= 1 : t === "ctrl" || t === "control" ? r |= 2 : t === "meta" || t === "cmd" || t === "win" || t === "windows" ? r |= 4 : t === "shift" && (r |= 8);
+    return r
+}
+
+function $n(e) {
+    const r = e.split("+");
+    let t = r.pop();
+    if (t === "" && (r.pop(), t = "+"), !t) return null;
+    const o = Sr(r.join("+")),
+        i = t.length === 1 && o === 0 ? t : void 0;
+    return {
+        key: t,
+        modifiers: o,
+        text: i
+    }
+}
+
+function br(e) {
+    return e ? e.replace(/[\r\n\t"\\]/g, " ").trim().slice(0, 200) : ""
+}
+
+function Dn(e) {
+    return e === !0 || e === 1 || e === "true" || e === "1" || e === "on" || e === "yes"
+}
+const Wt = 10,
+    J = {
+        tabId: {
+            type: "string",
+            description: 'Tab to act on within the preview context (default: the fronted tab). "main" is the primary view.'
+        }
+    },
+    Nn = new Set(["left_click", "right_click", "double_click", "triple_click", "type", "key", "left_click_drag"]),
+    Ln = {
+        type: "object",
+        properties: {
+            ...J,
+            filter: {
+                type: "string",
+                enum: ["interactive", "all"],
+                description: "'interactive' returns only clickable/typable elements; 'all' (default) returns the full tree."
+            },
+            depth: {
+                type: "number",
+                description: "Maximum tree depth to traverse (default: 15)."
+            },
+            ref_id: {
+                type: "string",
+                description: "Restrict the tree to descendants of this `ref_N` (from a previous read_page)."
+            },
+            max_chars: {
+                type: "number",
+                description: "Maximum characters of output (default: 50000)."
+            }
+        },
+        required: ["tabId"]
+    },
+    Un = {
+        type: "object",
+        properties: {
+            ...J,
+            action: {
+                type: "string",
+                enum: ["left_click", "right_click", "type", "screenshot", "wait", "scroll", "key", "left_click_drag", "double_click", "triple_click", "zoom", "scroll_to", "hover"],
+                description: "The action to perform:\n* `left_click`: Click the left mouse button at the specified coordinates.\n* `right_click`: Click the right mouse button at the specified coordinates to open context menus.\n* `double_click`: Double-click the left mouse button at the specified coordinates.\n* `triple_click`: Triple-click the left mouse button at the specified coordinates.\n* `type`: Type a string of text.\n* `screenshot`: Take a screenshot of the screen.\n* `wait`: Wait for a specified number of seconds.\n* `scroll`: Scroll up, down, left, or right at the specified coordinates.\n* `key`: Press a specific keyboard key.\n* `left_click_drag`: Drag from start_coordinate to coordinate.\n* `zoom`: Take a screenshot of a specific region for closer inspection.\n* `scroll_to`: Scroll an element into view using its element reference ID from read_page or find tools.\n* `hover`: Move the mouse cursor to the specified coordinates or element without clicking. Useful for revealing tooltips, dropdown menus, or triggering hover states."
+            },
+            coordinate: {
+                type: "array",
+                items: {
+                    type: "number"
+                },
+                minItems: 2,
+                maxItems: 2,
+                description: "(x, y): The x (pixels from the left edge) and y (pixels from the top edge) coordinates. Required for `left_click`, `right_click`, `double_click`, `triple_click`, and `scroll`. For `left_click_drag`, this is the end position."
+            },
+            text: {
+                type: "string",
+                description: 'The text to type (for `type` action) or the key(s) to press (for `key` action). For `key` action: Provide space-separated keys (e.g., "Backspace Backspace Delete"). Supports keyboard shortcuts using the platform\'s modifier key (use "cmd" on Mac, "ctrl" on Windows/Linux, e.g., "cmd+a" or "ctrl+a" for select all).'
+            },
+            duration: {
+                type: "number",
+                minimum: 0,
+                maximum: Wt,
+                description: `The number of seconds to wait. Required for \`wait\`. Maximum ${Wt} seconds.`
+            },
+            scroll_direction: {
+                type: "string",
+                enum: ["up", "down", "left", "right"],
+                description: "The direction to scroll. Required for `scroll`."
+            },
+            scroll_amount: {
+                type: "number",
+                minimum: 1,
+                maximum: 10,
+                description: "The number of scroll wheel ticks. Optional for `scroll`, defaults to 3."
+            },
+            start_coordinate: {
+                type: "array",
+                items: {
+                    type: "number"
+                },
+                minItems: 2,
+                maxItems: 2,
+                description: "(x, y): The starting coordinates for `left_click_drag`."
+            },
+            region: {
+                type: "array",
+                items: {
+                    type: "number"
+                },
+                minItems: 4,
+                maxItems: 4,
+                description: "(x0, y0, x1, y1): The rectangular region to capture for `zoom`. Coordinates define a rectangle from top-left (x0, y0) to bottom-right (x1, y1) in pixels from the viewport origin. Required for `zoom` action. Useful for inspecting small UI elements like icons, buttons, or text."
+            },
+            repeat: {
+                type: "number",
+                minimum: 1,
+                maximum: 100,
+                description: "Number of times to repeat the key sequence. Only applicable for `key` action. Must be a positive integer between 1 and 100. Default is 1. Useful for navigation tasks like pressing arrow keys multiple times."
+            },
+            ref: {
+                type: "string",
+                description: 'Element reference ID from read_page or find tools (e.g., "ref_1", "ref_2"). Required for `scroll_to` action. Can be used as alternative to `coordinate` for click actions.'
+            },
+            modifiers: {
+                type: "string",
+                description: 'Modifier keys for click actions. Supports: "ctrl", "shift", "alt", "cmd" (or "meta"), "win" (or "windows"). Can be combined with "+" (e.g., "ctrl+shift", "cmd+alt"). Optional.'
+            }
+        },
+        required: ["action", "tabId"]
+    },
+    Fn = {
+        type: "object",
+        properties: {
+            ...J,
+            ref: {
+                type: "string",
+                description: 'Element reference ID from the read_page tool (e.g., "ref_1", "ref_2")'
+            },
+            value: {
+                type: ["string", "boolean", "number"],
+                description: "The value to set. For checkboxes use boolean, for selects use option value or text, for other inputs use appropriate string/number"
+            }
+        },
+        required: ["ref", "value", "tabId"]
+    },
+    qn = {
+        type: "object",
+        properties: {
+            ...J,
+            url: {
+                type: "string",
+                description: 'The URL to navigate to. Can be provided with or without protocol (defaults to https://). Use "forward" to go forward in history or "back" to go back in history.'
+            },
+            force: {
+                type: "boolean",
+                description: 'If the page shows a "Leave site?" dialog because of unsaved changes, discard those changes and navigate anyway. Defaults to false.'
+            }
+        },
+        required: ["url", "tabId"]
+    },
+    jn = {
+        type: "object",
+        properties: {
+            ...J,
+            query: {
+                type: "string",
+                description: 'Natural language description of what to find (e.g., "search bar", "add to cart button", "product title containing organic")'
+            }
+        },
+        required: ["query", "tabId"]
+    },
+    Bn = {
+        type: "object",
+        properties: {
+            ...J,
+            max_chars: {
+                type: "number",
+                description: "Maximum characters of output (default: 50000)."
+            }
+        },
+        required: ["tabId"]
+    },
+    Hn = {
+        type: "object",
+        properties: {
+            ...J,
+            action: {
+                type: "string",
+                enum: ["javascript_exec"],
+                description: "Action to perform (only `javascript_exec` is supported)."
+            },
+            text: {
+                type: "string",
+                description: "JavaScript expression to evaluate in the page context. Return values are serialized as JSON."
+            }
+        },
+        required: ["action", "text", "tabId"]
+    },
+    Wn = {
+        type: "object",
+        properties: {
+            ...J,
+            onlyErrors: {
+                type: "boolean",
+                description: "Return only error-level entries."
+            },
+            pattern: {
+                type: "string",
+                description: "Substring filter on message text."
+            },
+            limit: {
+                type: "number",
+                description: "Max entries to return (default: 50, max: 200)."
+            }
+        },
+        required: ["tabId"]
+    },
+    Gn = {
+        type: "object",
+        properties: {
+            ...J,
+            urlPattern: {
+                type: "string",
+                description: "Substring filter on request URL."
+            },
+            requestId: {
+                type: "string",
+                description: "If provided, returns the response body for this request instead of listing."
+            },
+            limit: {
+                type: "number",
+                description: "Max entries to return when listing (default: 50)."
+            }
+        },
+        required: ["tabId"]
+    },
+    zn = {
+        type: "object",
+        properties: {
+            ...J,
+            preset: {
+                type: "string",
+                enum: ["mobile", "tablet", "desktop"]
+            },
+            width: {
+                type: "number"
+            },
+            height: {
+                type: "number"
+            },
+            colorScheme: {
+                type: "string",
+                enum: ["light", "dark"]
+            }
+        },
+        required: ["tabId"]
+    };
+
+function M(e) {
+    return {
+        content: [{
+            type: "text",
+            text: e
+        }],
+        isError: !0
+    }
+}
+const Gt = "the Browser pane never submits embedded credentials on the user's behalf";
+
+function ge(e, r, t) {
+    if (e.isError || !n.isContextExternalPreviewEnabled(r)) return e;
+    const o = n.getPreviewUrlForTab(r, t);
+    let i = "(no page)";
+    if (o) {
+        const d = n.normalizePreviewOrigin(o);
+        if (d) i = d;
+        else try {
+            i = `${new URL(o).protocol.replace(/:$/,"")}:`
+        } catch {
+            i = "page content"
+        }
+    }
+    const s = br(n.getPreviewTitleForTab(r, t));
+    let a = `
+
+Tab Context:
+- Executed on tabId: ${t}
+- Available tabs:
+  • tabId ${t}: "${s}" (${i})`;
+    const l = n.getDeniedMediaKindsForTab(r, t);
+    l.length > 0 && (a += `
+- Note: the page (or a frame it embeds) requested ${l.join(" and ")} access, which is blocked in the Browser pane; the user was shown a notice. Don't treat device capture as working.`);
+    const c = Array.isArray(e.content) ? [...e.content] : [];
+    return c.push({
+        type: "text",
+        text: a
+    }), {
+        ...e,
+        content: c
+    }
+}
+async function oe(e, r) {
+    if (!n.isContextExternalPreviewEnabled(e)) return null;
+    const t = n.getPreviewUrlForTab(e, r);
+    if (!t) return r === n.SEED_TAB_ID ? null : {
+        denied: M("That Browser tab closed before this read could run; retry.")
+    };
+    const o = n.normalizePreviewOrigin(t);
+    if (o === null || n.isLocalhostHostname(new URL(t).hostname)) return null;
+    const i = await n.consultBlocklistEpochGuarded(t);
+    if (i.kind === "epoch-changed") return {
+        denied: M("Browser pane state was reset mid-call; retry.")
+    };
+    if (i.kind === "error") return {
+        denied: M("Policy check temporarily unavailable; retry.")
+    };
+    if (i.kind === "ok" && n.shouldBlockNavigation(i.category)) return {
+        denied: M("This site is blocked by policy.")
+    };
+    if (i.kind === "ok" && n.shouldForceApproval(i.category)) return {
+        denied: M("This site requires per-action approval; Browser read tools are not available on it.")
+    };
+    const s = n.normalizePreviewOrigin(n.getPreviewUrlForTab(e, r) ?? "");
+    return s !== o ? {
+        denied: M(`Page navigated from ${o} to ${s??"(non-http)"} during the policy check; retry.`)
+    } : {
+        url: t
+    }
+}
+
+function pe(e, r) {
+    return `${e}:${r}`
+}
+const ie = new Map,
+    ue = new Map;
+
+function xe(e, r) {
+    if (r !== void 0) {
+        const o = pe(e, r);
+        ie.delete(o), ue.delete(o);
+        return
+    }
+    const t = `${e}:`;
+    for (const o of [...ie.keys()]) o.startsWith(t) && ie.delete(o);
+    for (const o of [...ue.keys()]) o.startsWith(t) && ue.delete(o)
+}
+n.setOnCrossOriginCommit(xe);
+async function Kn(e, r, t) {
+    const o = await oe(e, r);
+    if (o && "denied" in o) return o.denied;
+    const i = t.filter ?? "all",
+        s = Number.isFinite(t.depth) ? Number(t.depth) : 15,
+        a = Number.isFinite(t.max_chars) ? Number(t.max_chars) : 5e4,
+        l = t.ref_id ?? null,
+        c = On + `;window.__generateAccessibilityTree(${JSON.stringify(i)}, ${JSON.stringify(s)}, ${JSON.stringify(a)}, ${JSON.stringify(l)})`;
+    let d;
+    try {
+        d = await n.evaluateInPreview(e, r, c)
+    } catch (v) {
+        return M(`read_page failed: ${v instanceof Error?v.message:String(v)}`)
+    }
+    const u = d;
+    if (!u || u.error) return M(`read_page failed: ${(u==null?void 0:u.error)??"no result from page"}`);
+    const p = u.pageContent ?? "",
+        h = o && "url" in o ? n.normalizePreviewOrigin(o.url) ?? "(non-http)" : "(non-http)",
+        f = n.normalizePreviewOrigin(n.getPreviewUrlForTab(e, r) ?? "") ?? "(non-http)",
+        _ = pe(e, r);
+    f === h ? ie.set(_, {
+        tree: p,
+        origin: h
+    }) : ie.delete(_);
+    const A = u.viewport ? `
+
+Viewport: ${u.viewport.width}x${u.viewport.height}` : "";
+    return {
+        content: [{
+            type: "text",
+            text: (p || "(empty page)") + A
+        }]
+    }
+}
+const Yn = 100,
+    Vn = 10;
+
+function Pe(e, r, t, o) {
+    const i = ue.get(pe(e, r));
+    return !i || i.screenshotWidth === 0 || i.screenshotHeight === 0 ? null : [Math.round(t * (i.viewportWidth / i.screenshotWidth)), Math.round(o * (i.viewportHeight / i.screenshotHeight))]
+}
+const Jn = new Set(["screenshot", "zoom", "hover", "scroll", "scroll_to"]);
+async function Xn(e, r, t, o) {
+    const i = t.action,
+        s = o ? `
+
+(captured at origin ${o})` : "";
+    if (Jn.has(i)) {
+        const l = await oe(e, r);
+        if (l && "denied" in l) return l.denied
+    }
+    const a = async () => {
+        if (t.ref) {
+            const l = await Kt(e, r, t.ref);
+            if ("error" in l) return l;
+            const c = [Math.round(l.x), Math.round(l.y)];
+            return {
+                dispatch: c,
+                echo: c
+            }
+        }
+        if (t.coordinate) {
+            const l = Pe(e, r, t.coordinate[0], t.coordinate[1]);
+            return l === null ? {
+                error: `${i} with \`coordinate\` requires a prior computer{action:"screenshot"} (no screenshot dimensions cached)`
+            } : {
+                dispatch: l,
+                echo: [Math.round(t.coordinate[0]), Math.round(t.coordinate[1])]
+            }
+        }
+        return {
+            error: `${i} requires either \`ref\` or \`coordinate\``
+        }
+    };
+    try {
+        switch (i) {
+            case "screenshot": {
+                const l = await n.takeScreenshotCompressed(e, r),
+                    c = await n.evaluateInPreview(e, r, "({w: window.innerWidth, h: window.innerHeight})"),
+                    d = (c == null ? void 0 : c.w) || 1280,
+                    u = (c == null ? void 0 : c.h) || 800;
+                return ue.set(pe(e, r), {
+                    viewportWidth: d,
+                    viewportHeight: u,
+                    screenshotWidth: l.width,
+                    screenshotHeight: l.height
+                }), {
+                    content: [{
+                        type: "image",
+                        data: l.data,
+                        mimeType: "image/jpeg"
+                    }, {
+                        type: "text",
+                        text: `Screenshot size: ${l.width}x${l.height}${s}`
+                    }]
+                }
+            }
+            case "left_click":
+            case "right_click":
+            case "double_click":
+            case "triple_click": {
+                const l = await a();
+                if ("error" in l) return M(l.error);
+                const c = i === "right_click" ? "right" : "left",
+                    d = i === "double_click" ? 2 : i === "triple_click" ? 3 : 1;
+                return await n.dispatchMouseInPreview(e, r, l.dispatch[0], l.dispatch[1], {
+                    button: c,
+                    clickCount: d,
+                    modifiers: Sr(t.modifiers)
+                }), {
+                    content: [{
+                        type: "text",
+                        text: `${i} at (${l.echo[0]}, ${l.echo[1]})${t.ref?` [${t.ref}]`:""}${s}`
+                    }]
+                }
+            }
+            case "hover": {
+                const l = await a();
+                return "error" in l ? M(l.error) : (await n.hoverInPreview(e, r, l.dispatch[0], l.dispatch[1]), {
+                    content: [{
+                        type: "text",
+                        text: `hover at (${l.echo[0]}, ${l.echo[1]})${s}`
+                    }]
+                })
+            }
+            case "type":
+                return typeof t.text != "string" ? M("`type` requires `text`") : (await n.typeTextInPreview(e, r, t.text), {
+                    content: [{
+                        type: "text",
+                        text: `typed ${t.text.length} chars${s}`
+                    }]
+                });
+            case "key": {
+                if (typeof t.text != "string") return M("`key` requires `text`");
+                const l = Number.isFinite(t.repeat) ? Math.min(Math.max(Number(t.repeat), 1), 100) : 1,
+                    c = t.text.split(/\s+/).filter(Boolean),
+                    d = 100;
+                if (c.length > d) return M(`\`key\` accepts at most ${d} tokens (got ${c.length})`);
+                const u = n.getNavCommitEpoch(e, r);
+                let p = 0;
+                for (let h = 0; h < l; h++)
+                    for (const f of c) {
+                        const _ = $n(f);
+                        if (_) {
+                            if (n.getNavCommitEpoch(e, r) !== u) return M("Page navigated during key sequence; remaining keys not dispatched.");
+                            await n.pressKeyInPreview(e, r, _), p++
+                        }
+                    }
+                return p === 0 ? M(`\`key\` parsed no valid tokens from "${t.text}"`) : {
+                    content: [{
+                        type: "text",
+                        text: `pressed ${t.text} x${l}${s}`
+                    }]
+                }
+            }
+            case "scroll": {
+                if (!t.coordinate) return M("`scroll` requires `coordinate`");
+                const l = Pe(e, r, t.coordinate[0], t.coordinate[1]);
+                if (l === null) return M('`scroll` with `coordinate` requires a prior computer{action:"screenshot"}');
+                const c = t.scroll_direction ?? "down";
+                if (c !== "up" && c !== "down" && c !== "left" && c !== "right") return M("`scroll` requires `scroll_direction` of up/down/left/right");
+                const u = (Number.isFinite(t.scroll_amount) ? Number(t.scroll_amount) : 3) * Yn,
+                    p = c === "left" ? -u : c === "right" ? u : 0,
+                    h = c === "up" ? -u : c === "down" ? u : 0;
+                return await n.scrollInPreview(e, r, l[0], l[1], p, h), {
+                    content: [{
+                        type: "text",
+                        text: `scrolled ${c} at (${Math.round(t.coordinate[0])}, ${Math.round(t.coordinate[1])})${s}`
+                    }]
+                }
+            }
+            case "scroll_to": {
+                if (!t.ref) return M("`scroll_to` requires `ref`");
+                const l = await Kt(e, r, t.ref);
+                return "error" in l ? M(l.error) : {
+                    content: [{
+                        type: "text",
+                        text: `scrolled ${t.ref} into view${s}`
+                    }]
+                }
+            }
+            case "left_click_drag": {
+                if (!t.start_coordinate || !t.coordinate) return M("`left_click_drag` requires `start_coordinate` and `coordinate`");
+                const l = Pe(e, r, t.start_coordinate[0], t.start_coordinate[1]),
+                    c = Pe(e, r, t.coordinate[0], t.coordinate[1]);
+                if (l === null || c === null) return M('`left_click_drag` requires a prior computer{action:"screenshot"}');
+                const d = n.getNavCommitEpoch(e, r);
+                return await n.dragInPreview(e, r, l[0], l[1], c[0], c[1]), n.getNavCommitEpoch(e, r) !== d ? M("Page navigated during drag; result may be unreliable.") : {
+                    content: [{
+                        type: "text",
+                        text: `dragged (${Math.round(t.start_coordinate[0])},${Math.round(t.start_coordinate[1])}) → (${Math.round(t.coordinate[0])},${Math.round(t.coordinate[1])})${s}`
+                    }]
+                }
+            }
+            case "wait": {
+                const l = Math.min(t.duration ?? 1, Vn);
+                return await n.sleep(l * 1e3), {
+                    content: [{
+                        type: "text",
+                        text: `waited ${l}s`
+                    }]
+                }
+            }
+            case "zoom": {
+                const l = await n.takeScreenshotCompressed(e, r),
+                    c = await n.evaluateInPreview(e, r, "({w: window.innerWidth, h: window.innerHeight})"),
+                    d = (c == null ? void 0 : c.w) || 1280,
+                    u = (c == null ? void 0 : c.h) || 800;
+                return ue.set(pe(e, r), {
+                    viewportWidth: d,
+                    viewportHeight: u,
+                    screenshotWidth: l.width,
+                    screenshotHeight: l.height
+                }), {
+                    content: [{
+                        type: "image",
+                        data: l.data,
+                        mimeType: "image/jpeg"
+                    }, {
+                        type: "text",
+                        text: `zoom: region crop not yet supported in the Browser pane; full screenshot returned${s}`
+                    }]
+                }
+            }
+            default:
+                return M(`Unknown computer action: ${i}`)
+        }
+    } catch (l) {
+        return M(`${i} failed: ${l instanceof Error?l.message:String(l)}`)
+    }
+}
+async function zt(e, r, t) {
+    const o = await n.requestPreviewDomainTransition(e, r, t);
+    return o === "denied" ? M(n.userDeclinedMessage("this domain transition")) : o === "suppressed" ? M("The user has repeatedly declined this domain transition, so the prompt is suppressed and the navigation was not performed. Do not retry; the user can navigate there manually if they want.") : o === "retry" ? M("Could not confirm the domain transition (another permission prompt was open, or the session changed during the prompt) — retry the navigation.") : null
+}
+async function Qn(e, r, t) {
+    if (typeof t.url != "string") return M("`navigate` requires a string `url`");
+    const o = t.url.trim(),
+        i = o.toLowerCase();
+    if (i === "back" || i === "forward") {
+        const c = n.peekHistoryNavUrl(e, r, i);
+        if (!c) return M(`no ${i} history`);
+        if (n.hasEmbeddedCredentials(c)) return n.isConsentedCredentialedNav(e, r, c) ? M(`this history entry was opened with credentials the user approved for a single navigation — going ${i} would re-submit them without approval. Navigate to the URL directly to show the consent card again.`) : (n.logEvent("desktop_launch_preview_credentialed_nav", {
+            action: "refused",
+            source: "history-tool"
+        }), M(`the ${i} history entry embeds credentials (user:password@); ${Gt}.`));
+        {
+            const p = n.normalizePreviewOrigin(c);
+            if (p !== null && !n.isLocalhostHostname(new URL(p).hostname) && n.isExternalPreviewDisabledByManagedPolicy()) return M(n.EXTERNAL_PREVIEW_AGENT_POLICY_MESSAGE)
+        }
+        if (n.isContextExternalPreviewEnabled(e) && n.normalizePreviewOrigin(c) !== null) {
+            const p = await n.consultBlocklistEpochGuarded(c);
+            if (p.kind === "ok" && n.shouldBlockNavigation(p.category)) return M(`${n.normalizePreviewOrigin(c)} is blocked by policy and cannot be opened in the Browser pane.`);
+            if (p.kind === "epoch-changed") return M("the Browser pane is no longer open");
+            if (p.kind === "error") return M("site policy check is unavailable — try again shortly")
+        }
+        const d = await zt(e, r, c);
+        if (d) return d;
+        const u = n.goHistoryOffsetVerified(e, r, i, c);
+        return u === "gone" ? M("the Browser pane is no longer open") : u === "changed" ? M(`history changed — retry ${i}`) : u === "blocked" ? M(`navigation ${i} was denied or failed`) : (await n.awaitNavigationCommit(e, r), {
+            content: [{
+                type: "text",
+                text: `navigated ${i}`
+            }]
+        })
+    }
+    const s = /^https?:\/\//i.test(o) ? o : `https://${o}`;
+    {
+        const c = n.normalizePreviewOrigin(s);
+        if (c !== null && !n.isLocalhostHostname(new URL(c).hostname) && n.isExternalPreviewDisabledByManagedPolicy()) return M(n.EXTERNAL_PREVIEW_AGENT_POLICY_MESSAGE)
+    }
+    let a = !1;
+    if (n.normalizePreviewOrigin(s) !== null && n.hasEmbeddedCredentials(s)) {
+        const c = await n.consultBlocklistEpochGuarded(n.stripEmbeddedCredentials(s));
+        if (c.kind === "epoch-changed") return M("the Browser pane is no longer open");
+        if (c.kind === "error") return M("site policy check is unavailable — try again shortly");
+        if (n.shouldBlockNavigation(c.category)) return M(`${n.normalizePreviewOrigin(s)} is blocked by policy and cannot be opened in the Browser pane.`);
+        const d = await n.requestPreviewCredentialedNavConsent(e, n.normalizePreviewOrigin(s) ?? "(target)");
+        if (d === "denied") return n.logEvent("desktop_launch_preview_credentialed_nav", {
+            action: "declined",
+            source: "navigate-tool"
+        }), M(n.userDeclinedMessage("submitting the sign-in credentials in this link"));
+        if (d !== "allowed") return n.logEvent("desktop_launch_preview_credentialed_nav", {
+            action: "refused",
+            source: "navigate-tool"
+        }), M(`the URL embeds credentials (user:password@); ${Gt} — navigate without them and let the user sign in on the page.`);
+        n.logEvent("desktop_launch_preview_credentialed_nav", {
+            action: "consented",
+            source: "navigate-tool"
+        }), a = !0
+    }
+    const l = await zt(e, r, n.stripEmbeddedCredentials(s));
+    if (l) return l;
+    try {
+        const c = await n.navigatePreview(e, r, s, "mcp-tool", {
+            credentialConsentGranted: a
+        });
+        return c === "denied-by-user" ? M(n.userDeclinedMessage(`opening ${n.normalizePreviewOrigin(s)??"(target)"} in the Browser pane`)) : c === "blocked" ? M(n.isExternalPreviewDisabledByManagedPolicy() ? n.EXTERNAL_PREVIEW_AGENT_POLICY_MESSAGE : `${n.normalizePreviewOrigin(s)??"(target)"} is blocked by policy and cannot be opened in the Browser pane.`) : c ? {
+            content: [{
+                type: "text",
+                text: `navigated to ${n.normalizePreviewOrigin(s)??"(target)"}`
+            }]
+        } : n.consumeRecentDownloadStart(e, r) ? {
+            content: [{
+                type: "text",
+                text: `${n.normalizePreviewOrigin(s)??"(target)"} responded with a file download instead of a page; the user was shown a save dialog and the Browser pane did not navigate. Do not retry this URL.`
+            }]
+        } : M(`navigation to ${n.normalizePreviewOrigin(s)??"(target)"} was denied or failed`)
+    } catch (c) {
+        return M(`navigate failed: ${c instanceof Error?c.message:String(c)}`)
+    }
+}
+const Zn = 20;
+async function eo(e, r, t) {
+    if (typeof t.query != "string") return M("`find` requires a string `query`");
+    const o = await oe(e, r);
+    if (o && "denied" in o) return o.denied;
+    const i = pe(e, r),
+        s = ie.get(i);
+    if (!s) return M("no read_page tree cached; call read_page first");
+    const a = n.normalizePreviewOrigin(n.getPreviewUrlForTab(e, r) ?? "") ?? "(non-http)";
+    if (s.origin !== a) return ie.delete(i), M(`cached read_page tree was for ${s.origin}, page is now ${a}; call read_page first`);
+    const l = t.query.toLowerCase(),
+        c = s.tree.split(`
+`),
+        d = [];
+    for (const u of c)
+        if (u.toLowerCase().includes(l) && /\[ref_\d+\]/.test(u) && (d.push(u.trim()), d.length >= Zn)) break;
+    return d.length === 0 ? {
+        content: [{
+            type: "text",
+            text: `No matches for "${t.query}".`
+        }]
+    } : {
+        content: [{
+            type: "text",
+            text: `Found ${d.length} match(es) for "${t.query}":
+${d.map(u=>`- ${u}`).join(`
+`)}`
+        }]
+    }
+}
+async function to(e, r, t) {
+    const o = await oe(e, r);
+    if (o && "denied" in o) return o.denied;
+    const i = Number.isFinite(t.max_chars) ? Number(t.max_chars) : 5e4,
+        s = JSON.stringify(i),
+        a = `(function() {
+    var selectors = ["article", "main", '[class*="articleBody"]', '[role="main"]', "#content"];
+    var best = document.body, bestLen = 0;
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el && el.innerText && el.innerText.length > bestLen) {
+        best = el; bestLen = el.innerText.length;
+      }
+    }
+    var text = (best.innerText || "").replace(/\\n{3,}/g, "\\n\\n").trim();
+    return {
+      title: document.title,
+      url: location.href,
+      tag: best.tagName.toLowerCase(),
+      text: text.slice(0, ${s}),
+      truncated: text.length > ${s}
+    };
+  })()`;
+    try {
+        const l = await n.evaluateInPreview(e, r, a);
+        if (!l) return M("get_page_text: no result from page");
+        const c = n.normalizePreviewOrigin(l.url) ?? "(non-http)",
+            d = br(l.title),
+            u = typeof l.tag == "string" && /^[a-z][a-z0-9]{0,15}$/.test(l.tag) ? l.tag : "body",
+            p = l.truncated ? `
+
+[truncated to ${i} chars]` : "";
+        return {
+            content: [{
+                type: "text",
+                text: `Title: ${d}
+URL: ${c}
+Source element: <${u}>
+---
+${l.text}${p}`
+            }]
+        }
+    } catch (l) {
+        return M(`get_page_text failed: ${l instanceof Error?l.message:String(l)}`)
+    }
+}
+async function ro(e, r, t, o) {
+    const i = typeof t.value == "boolean" ? t.value ? "true" : "false" : String(t.value),
+        s = Dn(t.value),
+        a = `(function() {
+    var map = window.__claudeElementMap;
+    if (!map) return { ok: false, error: "ref map not initialized; call read_page first" };
+    var entry = map[${JSON.stringify(t.ref)}];
+    var el = entry && typeof entry.deref === "function" ? entry.deref() : entry;
+    if (!el || !el.isConnected) return { ok: false, error: "ref not found or stale: " + ${JSON.stringify(t.ref)} };
+    el.focus();
+    var tag = el.tagName.toLowerCase();
+    var v = ${JSON.stringify(i)};
+    function nativeSet(proto, prop, target, value) {
+      var d = Object.getOwnPropertyDescriptor(proto, prop);
+      if (d && d.set) { d.set.call(target, value); } else { target[prop] = value; }
+    }
+    if (tag === "select") {
+      var opt = Array.from(el.options).find(function(o) { return o.value === v || o.text === v; });
+      if (!opt) return { ok: false, error: "option not found" };
+      nativeSet(window.HTMLSelectElement.prototype, "value", el, opt.value);
+    } else if (el.type === "radio") {
+      nativeSet(window.HTMLInputElement.prototype, "checked", el, true);
+    } else if (el.type === "checkbox") {
+      nativeSet(window.HTMLInputElement.prototype, "checked", el, ${JSON.stringify(s)});
+    } else if (tag === "input" || tag === "textarea") {
+      var proto = tag === "textarea" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      nativeSet(proto, "value", el, v);
+    } else if (el.isContentEditable) {
+      el.textContent = v;
+    } else {
+      return { ok: false, error: "element is not fillable" };
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return { ok: true };
+  })()`;
+    try {
+        const l = await n.evaluateInPreview(e, r, a);
+        if (!(l != null && l.ok)) return M(`form_input failed: ${(l==null?void 0:l.error)??"no result from page"}`);
+        const c = o ? `
+
+(captured at origin ${o})` : "";
+        return {
+            content: [{
+                type: "text",
+                text: `filled ${t.ref} with value${c}`
+            }]
+        }
+    } catch (l) {
+        return M(`form_input failed: ${l instanceof Error?l.message:String(l)}`)
+    }
+}
+async function Kt(e, r, t) {
+    const o = `(function() {
+    var map = window.__claudeElementMap;
+    if (!map) return { error: "ref map not initialized; call read_page first" };
+    var entry = map[${JSON.stringify(t)}];
+    if (!entry) return { error: "ref not found: " + ${JSON.stringify(t)} };
+    var el = typeof entry.deref === "function" ? entry.deref() : entry;
+    if (!el || !el.isConnected) return { error: "ref is stale (element removed): " + ${JSON.stringify(t)} };
+    el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+    var r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  })()`,
+        i = await n.evaluateInPreview(e, r, o);
+    return i || {
+        error: "ref resolution returned null"
+    }
+}
+const _t = new Set(["preview_start", "preview_stop", "preview_list", "preview_logs"]),
+    no = new Set(["read_page", "computer", "form_input", "navigate", "find", "get_page_text", "javascript_tool", "read_console_messages", "read_network_requests", "resize_window"]);
+
+function oo(e) {
+    return e.startsWith("preview_") && !_t.has(e) && !no.has(e)
+}
+const Tr = [{
+        name: "read_page",
+        description: "Read the current page in the Browser pane as a YAML-style accessibility tree. Each interactive element is tagged `[ref_N]` for use with `computer`/`form_input`/`find`. Prefer this over screenshot for verifying text and structure. Output is limited to 50000 characters by default; if it exceeds the limit it is truncated with a note — pass a larger max_chars, or use ref_id/depth to focus.",
+        inputSchema: Ln
+    }, {
+        name: "computer",
+        description: 'Mouse/keyboard automation in the Browser pane. Clicks accept either `coordinate` (screenshot-pixel space, from a prior `computer{action:"screenshot"}`) or `ref` (a `ref_N` from read_page/find).',
+        inputSchema: Un
+    }, {
+        name: "form_input",
+        description: "Set the value of a form element identified by `ref` (from read_page). Handles input/textarea/select/checkbox/contenteditable.",
+        inputSchema: Fn
+    }, {
+        name: "navigate",
+        description: 'Navigate the Browser pane to a URL, or go "back"/"forward" in history. If the Browser pane isn\'t open yet, call preview_start with `{url}` first to open a browser tab (no dev server needed).',
+        inputSchema: qn
+    }, {
+        name: "find",
+        description: "Search the last read_page tree for elements matching a query string. Returns `ref_N` matches. Call read_page first.",
+        inputSchema: jn
+    }, {
+        name: "get_page_text",
+        description: "Extract the visible text of the Browser pane's page (article/main content first, falls back to body innerText).",
+        inputSchema: Bn
+    }, {
+        name: "javascript_tool",
+        description: "Execute JavaScript in the Browser pane's page for DEBUGGING and INSPECTION only. Do NOT use this to implement UI changes — edit source code instead.",
+        inputSchema: Hn
+    }, {
+        name: "read_console_messages",
+        description: "Get console output (log, info, warn, error, debug) from the Browser pane.",
+        inputSchema: Wn
+    }, {
+        name: "read_network_requests",
+        description: "List network requests, or fetch a specific response body by `requestId`.",
+        inputSchema: Gn
+    }, {
+        name: "resize_window",
+        description: "Resize the Browser pane viewport. Presets: mobile (375x812), tablet (768x1024), desktop (1280x800).",
+        inputSchema: zn
+    }, {
+        name: "tabs_context",
+        description: "List every Browser pane tab (origin only — titles are page-authored). Call this before passing tabId to other tools so you know which tabs exist. Each entry has {tabId, origin, isActive}.",
+        inputSchema: {
+            type: "object",
+            properties: {}
+        }
+    }, {
+        name: "tabs_create",
+        description: "Open a fresh blank Browser pane tab and front it. Returns the new tabId. Use `navigate` to load a URL into it (the per-origin approval card is the gate for the first real load).",
+        inputSchema: {
+            type: "object",
+            properties: {}
+        }
+    }, {
+        name: "tabs_select",
+        description: "Front the given Browser pane tab.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                tabId: {
+                    type: "string",
+                    description: "Tab to front."
+                }
+            },
+            required: ["tabId"]
+        }
+    }, {
+        name: "tabs_close",
+        description: "Close one Browser pane tab. Cannot close the main tab — use `navigate` to load a different URL there instead.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                tabId: {
+                    type: "string",
+                    description: "Tab to close."
+                }
+            },
+            required: ["tabId"]
+        }
+    }],
+    io = "Open the Browser pane: pass `url` to open a browser tab at a URL (no dev server needed — use this for external sites, staging, docs, or your deployed app), OR pass `name` to start a dev server from .claude/launch.json.\n\n";
+
+function so(e) {
+    if (e.name !== "preview_start") return e;
+    const r = e.inputSchema;
+    return {
+        ...e,
+        description: io + e.description,
+        inputSchema: {
+            ...e.inputSchema,
+            properties: {
+                ...r.properties ?? {},
+                url: {
+                    type: "string",
+                    description: "URL to open in the Browser pane without a dev server (instead of starting one by `name`)."
+                }
+            },
+            required: []
+        }
+    }
+}
+
+function ao(e) {
+    return n.isExternalPreviewEnabled() ? [...e.filter(t => _t.has(t.name)).map(so), ...Tr] : e
+}
+const Ue = "Claude Browser",
+    kr = [{
+        name: "preview_start",
+        description: `Start a dev server by name from .claude/launch.json. If .claude/launch.json doesn't exist, create it first with this format:
+` + n.LAUNCH_JSON_FORMAT + `
+` + n.LAUNCH_JSON_FIELDS_HELP + " Reuses the server if already running. ALWAYS use this instead of Bash for running servers.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    description: "Server name from .claude/launch.json."
+                }
+            },
+            required: ["name"]
+        }
+    }, {
+        name: "preview_stop",
+        description: "Stop a server started with preview_start.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID to stop"
+                }
+            },
+            required: ["serverId"]
+        }
+    }, {
+        name: "preview_list",
+        description: "List servers started with preview_start. Returns serverIds for use with other preview_* tools.",
+        inputSchema: {
+            type: "object",
+            properties: {}
+        }
+    }, {
+        name: "preview_logs",
+        description: "Get server stdout/stderr output. Use to check for build errors, verify server behavior, or read debug output. Use 'level' to filter to errors only, or 'search' to filter for specific text. Use after preview_start.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                level: {
+                    type: "string",
+                    enum: ["all", "error"],
+                    description: "Filter by level: 'all' (default) shows all output, 'error' shows only lines containing error/exception/failed/fatal"
+                },
+                lines: {
+                    type: "number",
+                    description: "Max lines to return (default: 50)"
+                },
+                search: {
+                    type: "string",
+                    description: "Filter to lines containing this text (e.g., '[DEBUG]', 'POST /api')"
+                }
+            },
+            required: ["serverId"]
+        }
+    }, {
+        name: "preview_console_logs",
+        description: "Get browser console output (log, info, warn, error, debug). Use to check runtime behavior, debug values, or client-side errors. Use 'level' to filter to errors or warnings only.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                level: {
+                    type: "string",
+                    enum: ["all", "error", "warn"],
+                    description: "Filter by level: 'all' (default), 'error' (errors only), 'warn' (warnings + errors)"
+                },
+                lines: {
+                    type: "number",
+                    description: "Max lines to return (default: 50, max: 200)"
+                }
+            },
+            required: ["serverId"]
+        }
+    }, {
+        name: "preview_screenshot",
+        description: "Take a screenshot of the page. Good for checking layout and general appearance, but DO NOT rely on it for verifying colors, font sizes, or precise styles — use preview_inspect with specific CSS properties instead. Returns a compressed JPEG image.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                }
+            },
+            required: ["serverId"]
+        }
+    }, {
+        name: "preview_snapshot",
+        description: "Get an accessibility tree snapshot of the page. Returns exact text content, roles, and element UIDs for use with click/fill/hover. PREFERRED over screenshot for verifying text, element presence, and page structure.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                }
+            },
+            required: ["serverId"]
+        }
+    }, {
+        name: "preview_inspect",
+        description: "Inspect a DOM element by CSS selector. Returns text content, className, tagName, id, computed styles, and bounding box. BEST tool for verifying visual properties like colors, fonts, spacing, and dimensions — more accurate than screenshots.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                selector: {
+                    type: "string",
+                    description: "CSS selector (e.g., '.button', '#header')"
+                },
+                styles: {
+                    type: "array",
+                    items: {
+                        type: "string"
+                    },
+                    description: "CSS properties to return (e.g., ['padding', 'color']). Defaults to common properties."
+                }
+            },
+            required: ["serverId", "selector"]
+        }
+    }, {
+        name: "preview_click",
+        description: `Click an element by CSS selector (e.g., 'button.primary', '#submit', '[data-testid="btn"]').`,
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                selector: {
+                    type: "string",
+                    description: "CSS selector for the element to click"
+                },
+                doubleClick: {
+                    type: "boolean",
+                    description: "Perform a double-click"
+                }
+            },
+            required: ["serverId", "selector"]
+        }
+    }, {
+        name: "preview_fill",
+        description: "Fill an input, textarea, or select element with a value. For select elements, matches by value or text.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                selector: {
+                    type: "string",
+                    description: "CSS selector for the input element"
+                },
+                value: {
+                    type: "string",
+                    description: "Value to fill"
+                }
+            },
+            required: ["serverId", "selector", "value"]
+        }
+    }, {
+        name: "preview_eval",
+        description: "Execute JavaScript in the Browser pane's page for DEBUGGING and INSPECTION only. Use for reading page state, DOM queries, checking variables, navigation, page reload, hover/type/key events. Do NOT use this to implement UI changes the user requests — edit the source code instead. Any DOM modifications via eval are temporary and lost on reload. Wrap multi-step logic in an IIFE.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                expression: {
+                    type: "string",
+                    description: "JavaScript expression to evaluate in the page context. Return values are serialized as JSON."
+                }
+            },
+            required: ["serverId", "expression"]
+        }
+    }, {
+        name: "preview_network",
+        description: "List network requests or inspect a specific response body. Without requestId, lists all requests with URL, method, status, and requestId. With requestId, returns the full response body for that request (useful for inspecting API payloads).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                filter: {
+                    type: "string",
+                    enum: ["all", "failed"],
+                    description: "Filter: 'all' (default) shows all requests, 'failed' shows only 4xx/5xx and network errors. Ignored when requestId is provided."
+                },
+                requestId: {
+                    type: "string",
+                    description: "If provided, returns the response body for this specific request instead of listing all requests. Get requestIds from the listing output."
+                }
+            },
+            required: ["serverId"]
+        }
+    }, {
+        name: "preview_resize",
+        description: "Resize the Browser pane viewport to test responsive layouts. Presets: mobile (375x812), tablet (768x1024), desktop (1280x800). Also supports custom dimensions and color scheme emulation for dark mode testing.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverId: {
+                    type: "string",
+                    description: "Server ID"
+                },
+                preset: {
+                    type: "string",
+                    enum: ["mobile", "tablet", "desktop"],
+                    description: "Device preset. Overrides width/height if provided."
+                },
+                width: {
+                    type: "number",
+                    description: "Viewport width in pixels"
+                },
+                height: {
+                    type: "number",
+                    description: "Viewport height in pixels"
+                },
+                colorScheme: {
+                    type: "string",
+                    enum: ["light", "dark"],
+                    description: "Emulate prefers-color-scheme media feature for dark/light mode testing."
+                }
+            },
+            required: ["serverId"]
+        }
+    }],
+    lo = new Set([...kr.map(e => e.name), ...Tr.map(e => e.name)]);
+
+function co() {
+    return ao(kr)
+}
+
+function I(e) {
+    return {
+        content: [{
+            type: "text",
+            text: e
+        }],
+        isError: !0
+    }
+}
+const Yt = 200;
+
+function Ye(e) {
+    if (typeof e == "string") return e.length > Yt ? `${e.slice(0,Yt)}… (${e.length} chars)` : e
+}
+
+function uo(e, r) {
+    const t = r;
+    return {
+        action: e === "computer" && typeof t.action == "string" ? t.action : void 0,
+        text: Ye(t.text),
+        value: Ye(t.value),
+        expression: Ye(t.expression),
+        selector: typeof t.selector == "string" ? t.selector : void 0,
+        ref: typeof t.ref == "string" ? t.ref : void 0,
+        coordinate: Array.isArray(t.coordinate) && t.coordinate.length === 2 && t.coordinate.every(o => typeof o == "number") ? t.coordinate : void 0
+    }
+}
+const Er = new Set(["preview_click", "preview_fill", "preview_eval", "computer", "form_input", "javascript_tool"]),
+    po = new Set(["tabs_context", "tabs_create", "tabs_select", "tabs_close"]);
+async function ho(e, r) {
+    const t = n.checkToolAccessGate(e, r);
+    if (t === null || t.state !== "needs-grant") return t;
+    const o = n.getPreviewUrlForTab(e, r),
+        i = o !== null ? n.normalizePreviewOrigin(o) : null;
+    if (o === null || i === null) return {
+        denied: "No site is open in this tab. Use `navigate` first."
+    };
+    const s = await n.requestPreviewOriginPermission(o, {
+        serverId: e,
+        source: "mcp-tool"
+    });
+    return s === "denied-by-user" ? {
+        denied: n.userDeclinedMessage(`acting on ${i} in the Browser pane`)
+    } : s === "blocked" ? (await n.applyToolAccessForTab(e, r), n.checkToolAccessGate(e, r) ?? t) : s !== "allowed" ? t : (await n.applyToolAccessForTab(e, r, i), n.checkToolAccessGate(e, r))
+}
+async function mo(e, r, t, o, i) {
+    if (!n.isContextExternalPreviewEnabled(r) || !Er.has(e) || e === "computer" && !Nn.has(String(o.action))) return null;
+    const s = n.getPreviewUrlForTab(r, t);
+    if (!s) return t === n.SEED_TAB_ID ? null : {
+        denied: I("That Browser tab closed before this action could run; retry.")
+    };
+    const a = n.normalizePreviewOrigin(s);
+    if (a === null || n.isLocalhostHostname(new URL(s).hostname)) return null;
+    if (n.checkToolAccessGate(r, t) !== null) return {
+        denied: I("This site is not approved for tool access.")
+    };
+    if (!n.isLoopbackHostLiteral(new URL(s).hostname) && !n.isToolAccessFromOneShot(r, t) && !n.isPreviewOriginAllowed(s)) return {
+        denied: I(`${a} was removed from Allowed sites. Re-approve to continue.`)
+    };
+    const l = await n.consultBlocklistEpochGuarded(s);
+    if (l.kind === "epoch-changed") return {
+        denied: I("Browser pane state was reset mid-call; retry.")
+    };
+    if (l.kind === "error") return {
+        denied: I("Policy check temporarily unavailable; retry.")
+    };
+    if (l.kind === "ok" && n.shouldBlockNavigation(l.category)) return {
+        denied: I("This site is blocked by policy.")
+    };
+    if (l.kind === "ok" && n.shouldForceApproval(l.category)) {
+        if (!i) return {
+            denied: I("This site requires per-action approval; Browser tools are not available on it.")
+        };
+        const d = uo(e, o);
+        if (n.logger.info("[Preview] cat3 per-action approval requested %o", {
+                origin: a,
+                toolName: e,
+                action: d.action
+            }), !await i(a, e, d)) return {
+            denied: I(n.userDeclinedMessage(`${e} on ${a}`))
+        };
+        const p = n.normalizePreviewOrigin(n.getPreviewUrlForTab(r, t) ?? "");
+        return p !== a ? {
+            denied: I(`Page navigated from ${a} to ${p??"(non-http)"} during the approval prompt; retry.`)
+        } : {
+            capturedOrigin: a
+        }
+    }
+    const c = n.normalizePreviewOrigin(n.getPreviewUrlForTab(r, t) ?? "");
+    return c !== a ? {
+        denied: I(`Page navigated from ${a} to ${c??"(non-http)"} during the policy check; retry.`)
+    } : {
+        capturedOrigin: a
+    }
+}
+const fo = new Set(["preview_screenshot", "preview_snapshot", "preview_inspect", "preview_click", "preview_fill", "preview_eval", "preview_network", "preview_resize", "read_page", "computer", "form_input", "find", "get_page_text", "javascript_tool", "read_network_requests", "resize_window"]),
+    Ve = 3e4;
+async function go(e, r) {
+    let t;
+    try {
+        return await Promise.race([r(), new Promise(o => {
+            t = setTimeout(() => {
+                n.logger.warn(`[Preview MCP] ${e} timed out after ${Ve}ms`), o(I(`${e} timed out after ${Ve/1e3}s. The Browser pane may be stuck (modal dialog, navigation hang, or unresponsive renderer). Check preview_console_logs for errors.`))
+            }, Ve)
+        })])
+    } finally {
+        t && clearTimeout(t)
+    }
+}
+
+function yo(e, r, t) {
+    return !t.startsWith(n.HTML_PREVIEW_ID_PREFIX) || e === "preview_screenshot" || e === "preview_snapshot" || e === "read_page" || e === "computer" && String(r.action) === "screenshot" ? null : I(`${e} is not available on this serverId: it is a read-only artifact view. Only screenshot and accessibility-snapshot tools work on artifact views; interaction tools (click, fill, eval, navigate, resize, stop) are not permitted.`)
+}
+
+function wo(e, r) {
+    try {
+        const t = new URL(e),
+            o = new URL(r);
+        return t.origin === o.origin && t.pathname === o.pathname
+    } catch {
+        return !1
+    }
+}
+const Oe = "Artifact pane is navigating or showing different content; retry, or call preview_list for current artifact views.";
+
+function Vt(e) {
+    var s;
+    const r = n.launchStateTracker.getArtifactView(e);
+    if (!(r != null && r.externalUrl)) return I("Artifact view no longer available. Call preview_list for current artifact views.");
+    if (n.CLAUDE_DESIGN_PATH_RE.test(((s = n.maybeURL(r.externalUrl)) == null ? void 0 : s.pathname) ?? "")) return I("Claude Design embeds are not capturable from Browser tools.");
+    const t = n.localFrameShellPreviewUrl(r.externalUrl) ?? r.externalUrl,
+        o = n.getPreviewUrl(e);
+    if (!o || !wo(o, t)) return I(Oe);
+    const i = n.getPreviewSubframeUrls(e);
+    if (i === null) return I(Oe);
+    for (const a of i) {
+        if (a === "" || a === "about:blank" || a === "about:srcdoc") continue;
+        const l = n.maybeURL(a);
+        if (!l || l.protocol !== "https:" || !n.isFrameUserContentHostForBuild(l.hostname)) return I(Oe)
+    }
+    return null
+}
+
+function _o(e, r, t) {
+    var s;
+    if (e != null && e.startsWith(n.HTML_PREVIEW_ID_PREFIX)) {
+        const a = n.launchStateTracker.getArtifactView(e);
+        return (a == null ? void 0 : a.sessionId) !== void 0 && t !== void 0 && a.sessionId === t ? e : null
+    }
+    if (n.isExternalPreviewEnabled() && t !== void 0) {
+        if (e != null && e.startsWith(n.SESSION_PREVIEW_ID_PREFIX)) return n.sessionIdFromPreviewId(e) === t ? e : null;
+        if (e != null && e.startsWith(n.BROWSER_PREVIEW_ID_PREFIX)) {
+            const l = n.launchStateTracker.getBrowserPreview(e);
+            return (l == null ? void 0 : l.sessionId) === t ? n.getSessionPreviewId(t) : null
+        }
+        if (e) {
+            const l = n.launchStateTracker.get(e);
+            return l ? l.sessionId !== void 0 && l.sessionId !== t ? null : l.sessionId === void 0 ? e : n.getSessionPreviewId(t) : null
+        }
+        const a = n.getSessionPreviewId(t);
+        if (n.isContextExternalPreviewEnabled(a)) return a
+    }
+    if (e != null && e.startsWith(n.BROWSER_PREVIEW_ID_PREFIX)) {
+        const a = n.launchStateTracker.getBrowserPreview(e);
+        return (a == null ? void 0 : a.sessionId) !== void 0 && t !== void 0 && a.sessionId === t ? e : null
+    }
+    if (e) {
+        const a = n.launchStateTracker.get(e);
+        if (a) return a.sessionId === void 0 || a.sessionId === t ? e : null
+    }
+    const i = n.launchStateTracker.getServersForWorktree(r).find(a => a.status === "running" && (a.sessionId === void 0 || a.sessionId === t));
+    return i ? i.serverId : ((s = n.launchStateTracker.getBrowserPreviewForSession(t)) == null ? void 0 : s.serverId) ?? null
+}
+
+function Jt(e, r) {
+    const t = n.launchStateTracker.getBrowserPreview(e);
+    if (t) return r !== void 0 && t.sessionId === r;
+    const o = n.launchStateTracker.get(e);
+    return o ? o.sessionId === void 0 || o.sessionId === r : !1
+}
+
+function Cr(e, r, t) {
+    const o = _o(e.serverId, r, t),
+        i = e.tabId,
+        s = typeof i == "string" && i.length > 0 ? i : o !== null ? n.getActivePreviewTabId(o) : n.SEED_TAB_ID;
+    return {
+        serverId: o,
+        tabId: s
+    }
+}
+async function vo(e, r, t, o, i) {
+    let s = null,
+        a = null,
+        l = null;
+    if (e !== "navigate" && !_t.has(e) && !po.has(e)) {
+        const {
+            serverId: c,
+            tabId: d
+        } = Cr(r, t, o);
+        if (c !== null) {
+            if (oo(e) && n.isContextExternalPreviewEnabled(c)) return I(`${e} is not available — use the ext-shaped equivalent (read_page, computer, read_console_messages, …).`);
+            const u = await ho(c, d);
+            if (u !== null) return I(u.denied);
+            if (Er.has(e) && (s = await mo(e, c, d, r, i), s && "denied" in s)) return s.denied;
+            a = c, l = d
+        }
+    }
+    return fo.has(e) ? go(e, () => Xt(e, r, t, o, s, a, l)) : Xt(e, r, t, o, s, a, l)
+}
+async function Xt(e, r, t, o, i = null, s = null, a = null) {
+    var v, P, y;
+    const l = lo.has(e) ? e : "unknown";
+    if (n.logEvent("desktop_launch_tool_used", {
+            session_id: o ?? "",
+            tool_name: `internal__${Ue}__${l}`
+        }), e === "preview_start") {
+        const m = r.url,
+            g = typeof m == "string" && m.trim().length > 0;
+        if (n.isExternalPreviewEnabled() && g) {
+            if (o === void 0) return I("preview_start{url} requires a session.");
+            const w = /^https?:\/\//i.test(m.trim()) ? m.trim() : `https://${m.trim()}`;
+            let C = !1;
+            if (n.normalizePreviewOrigin(w) !== null && n.hasEmbeddedCredentials(w)) {
+                if (!n.isLocalhostHostname(new URL(w).hostname) && n.isExternalPreviewDisabledByManagedPolicy()) return I(n.EXTERNAL_PREVIEW_AGENT_POLICY_MESSAGE);
+                const O = await n.consultBlocklistEpochGuarded(n.stripEmbeddedCredentials(w));
+                if (O.kind === "epoch-changed") return I("Browser pane state was reset mid-call; retry.");
+                if (O.kind === "error") return I("site policy check is unavailable — try again shortly");
+                if (n.shouldBlockNavigation(O.category)) return I(`${n.normalizePreviewOrigin(w)} is blocked by policy and cannot be opened in the Browser pane.`);
+                const D = await n.requestPreviewCredentialedNavConsent(n.SESSION_PREVIEW_ID_PREFIX + o, n.normalizePreviewOrigin(w) ?? "(target)");
+                if (D === "denied") return n.logEvent("desktop_launch_preview_credentialed_nav", {
+                    action: "declined",
+                    source: "mcp-tool"
+                }), I(n.userDeclinedMessage("submitting the sign-in credentials in this link"));
+                if (D !== "allowed") return n.logEvent("desktop_launch_preview_credentialed_nav", {
+                    action: "refused",
+                    source: "mcp-tool"
+                }), I("the URL embeds credentials (user:password@); the Browser pane never submits embedded credentials on the user's behalf — retry without them and let the user sign in on the page.");
+                n.logEvent("desktop_launch_preview_credentialed_nav", {
+                    action: "consented",
+                    source: "mcp-tool"
+                }), C = !0
+            }
+            const b = (v = n.launchStateTracker.getBrowserPreviewForSession(o)) == null ? void 0 : v.tabId,
+                E = n.launchStateTracker.loadBrowserPreview(t, o),
+                T = ((P = n.launchStateTracker.getBrowserPreviewForSession(o)) == null ? void 0 : P.tabId) ?? null,
+                k = T !== null && T === b;
+            if (T === null) return I("Tab cap reached. Close a tab (tabs_close) before opening another, or call tabs_context to find an existing tab to reuse.");
+            const S = n.normalizePreviewOrigin(w) === null ? !1 : await n.navigatePreview(E, T, w, "mcp-tool", {
+                    credentialConsentGranted: C
+                }),
+                R = n.normalizePreviewOrigin(w) ?? "(target)";
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        serverId: E,
+                        tabId: T,
+                        reused: k,
+                        type: "browser",
+                        navOk: S === !0
+                    }, null, 2) + (S === !0 ? `
+Browser pane opened. Use serverId "${E}" with read_page / computer / navigate.` : S === "denied-by-user" ? `
+Browser pane opened at about:blank. ${n.userDeclinedMessage(`opening ${R}`)}` : S === "blocked" ? n.isExternalPreviewDisabledByManagedPolicy() ? `
+${n.EXTERNAL_PREVIEW_AGENT_POLICY_MESSAGE}` : `
+Browser pane opened at about:blank; ${R} is blocked by policy. Use \`navigate\` to try a different URL.` : n.consumeRecentDownloadStart(E, T) ? `
+${R} responded with a file download instead of a page; the user was shown a save dialog and the Browser pane stayed at about:blank. Do not retry this URL.` : `
+Browser pane opened at about:blank; navigation to ${R} was denied or failed. Use \`navigate\` to try a different URL.`)
+                }]
+            }
+        }
+        try {
+            const w = await n.resolveLaunchAction(r, t, o),
+                C = w.action !== "deny" ? w.config.port : 3e3,
+                b = await n.startServer(w, t, o);
+            let E = "";
+            return b.reused ? E = `
+Server was already running and has been reused. No new process was started.` : b.port !== C ? E = `
+Server started successfully. Configured port ${C} was in use, so port ${b.port} was assigned instead (autoPort is enabled). The preview is available at http://localhost:${b.port}.` : E = `
+Server started successfully on port ${b.port}.`, n.isExternalPreviewEnabled() && !b.reused && (E += b.tabId !== void 0 ? ` Opened tab "${b.tabId}" at http://localhost:${b.port}. Use tabId "${b.tabId}" with read_page / computer / navigate; serverId is for preview_stop and preview_logs only.` : " Tab cap reached — close a tab (tabs_close) before previewing this server. serverId is for preview_stop and preview_logs only."), {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify(b, null, 2) + E
+                }]
+            }
+        } catch (w) {
+            if (w instanceof n.PortInUseError) return I(w.message);
+            const C = w instanceof Error ? w.message : String(w);
+            return n.isPortInUseError(C) ? I(n.formatEaddrinuseError(C)) : I(`Failed to start server: ${C}
+
+Check the command in .claude/launch.json and try again.`)
+        }
+    }
+    if (e === "preview_stop") {
+        const {
+            serverId: m
+        } = r;
+        if (o !== void 0 && n.sessionIdFromPreviewId(m) === o) return I("preview_stop takes a process id from preview_list, not the session previewId.");
+        if (n.launchStateTracker.getArtifactView(m)) return I("This serverId is a read-only artifact view; it cannot be stopped from Browser tools.");
+        if (!Jt(m, o)) return {
+            content: [{
+                type: "text",
+                text: `Server ${m} not found`
+            }],
+            isError: !0
+        };
+        const g = n.launchStateTracker.stop(m);
+        return xe(m), {
+            content: [{
+                type: "text",
+                text: g ? `Server ${m} stopped` : `Server ${m} not found`
+            }],
+            isError: !g
+        }
+    }
+    if (e === "preview_list") {
+        const m = n.launchStateTracker.servers.filter(E => !E.serverId.startsWith(n.HTML_PREVIEW_ID_PREFIX)).filter(E => !E.serverId.startsWith(n.BROWSER_PREVIEW_ID_PREFIX) || o !== void 0 && E.sessionId === o).filter(E => E.sessionId === void 0 || E.sessionId === o).map(E => E.serverId.startsWith(n.BROWSER_PREVIEW_ID_PREFIX) ? {
+                ...E,
+                type: "browser"
+            } : E),
+            g = o !== void 0 ? n.launchStateTracker.servers.filter(E => {
+                var T;
+                return E.sessionId === o && n.launchStateTracker.getArtifactView(E.serverId) !== void 0 && !n.CLAUDE_DESIGN_PATH_RE.test(((T = n.maybeURL(E.externalUrl ?? "")) == null ? void 0 : T.pathname) ?? "")
+            }).map(E => ({
+                serverId: E.serverId,
+                name: E.name,
+                type: "artifact_view",
+                readOnly: !0,
+                url: E.externalUrl
+            })) : [];
+        n.logger.debug("[Preview] list called %o", {
+            serverCount: m.length,
+            artifactViewCount: g.length
+        });
+        const w = n.isExternalPreviewEnabled() && o !== void 0 ? `
+
+Session preview: ${JSON.stringify({previewId:n.getSessionPreviewId(o),tabs:n.allPreviewTabSummaries(n.getSessionPreviewId(o))},null,2)}
+Process entries above are for preview_stop / preview_logs only; address pages via tabId on the session preview.` : "";
+        if (g.length === 0) return {
+            content: [{
+                type: "text",
+                text: JSON.stringify(m, null, 2) + w
+            }]
+        };
+        const b = `
+
+Entries with type "artifact_view" are the in-app Artifacts pane and are READ-ONLY: only ${n.isExternalPreviewEnabled()?'read_page and computer {action: "screenshot"}':"preview_screenshot and preview_snapshot"} work on them. Their serverIds change when a new artifact loads — re-list if one goes stale.`;
+        return {
+            content: [{
+                type: "text",
+                text: JSON.stringify([...m, ...g], null, 2) + b + w
+            }]
+        }
+    }
+    const c = s !== null ? {
+            serverId: s,
+            tabId: a ?? n.getActivePreviewTabId(s)
+        } : Cr(r, t, o),
+        {
+            serverId: d,
+            tabId: u
+        } = c;
+    if (!d) {
+        const m = r.serverId,
+            g = m !== void 0;
+        return n.isExternalPreviewEnabled() ? I(g ? `serverId "${m}" not found — it may be stale or belong to another session. Call preview_list to get current ids.` : 'No preview is open. Use preview_start with {"url": "https://…"} to open a browser tab at a URL, or with {"name": "…"} to start a dev server from .claude/launch.json.') : I("Server not found. No running servers for this workspace.")
+    }
+    const p = yo(e, r, d);
+    if (p) return p;
+    if (d.startsWith(n.HTML_PREVIEW_ID_PREFIX)) {
+        const m = e === "preview_screenshot" || e === "computer",
+            g = n.getNavCommitEpoch(d, n.SEED_TAB_ID),
+            w = n.getFrameTreeEpoch(d, n.SEED_TAB_ID),
+            C = Vt(d);
+        if (C) return C;
+        try {
+            let b;
+            m ? b = {
+                content: [{
+                    type: "image",
+                    data: (await n.takeScreenshotCompressed(d, n.SEED_TAB_ID)).data,
+                    mimeType: "image/jpeg"
+                }]
+            } : b = {
+                content: [{
+                    type: "text",
+                    text: await n.takeSnapshotText(d, n.SEED_TAB_ID) || "No accessible content found."
+                }]
+            };
+            const E = Vt(d);
+            return E || (n.getNavCommitEpoch(d, n.SEED_TAB_ID) !== g || n.getFrameTreeEpoch(d, n.SEED_TAB_ID) !== w ? I(Oe) : b)
+        } catch (b) {
+            return I(`${m?"Screenshot":"Snapshot"} failed: ${b instanceof Error?b.message:String(b)}`)
+        }
+    }
+    const h = (i == null ? void 0 : i.capturedOrigin) ?? null,
+        f = h ? `
+
+(captured at origin ${h})` : "",
+        _ = m => m.then(g => g.isError ? g : ge(g, d, u));
+    if (e === "read_page") return _(Kn(d, u, r));
+    if (e === "computer") return _(Xn(d, u, r, h));
+    if (e === "form_input") return _(ro(d, u, r, h));
+    if (e === "tabs_context") return {
+        content: [{
+            type: "text",
+            text: JSON.stringify({
+                tabs: n.allPreviewTabSummaries(d)
+            }, null, 2)
+        }]
+    };
+    if (e === "tabs_create") {
+        const m = n.openPreviewTab(d);
+        return m === null ? I("Could not open a new tab (Browser pane gone, gate off, or tab cap reached).") : {
+            content: [{
+                type: "text",
+                text: JSON.stringify({
+                    serverId: d,
+                    tabId: m,
+                    reused: !1,
+                    type: "browser"
+                }, null, 2) + `
+Opened tab ${m}. Use \`navigate\` with tabId "${m}" to load a URL.`
+            }]
+        }
+    }
+    if (e === "tabs_select") {
+        const m = r.tabId;
+        return typeof m != "string" ? I("`tabs_select` requires a string `tabId`.") : n.setActivePreviewTab(d, m) ? {
+            content: [{
+                type: "text",
+                text: `Fronted tab ${m}.`
+            }]
+        } : I(`Tab ${m} not found.`)
+    }
+    if (e === "tabs_close") {
+        const m = r.tabId;
+        return typeof m != "string" ? I("`tabs_close` requires a string `tabId`.") : n.getPreviewTabCount(d) <= 1 ? I("The last tab cannot be closed from a tool — use `tabs_create` first or ask the user.") : n.closePreviewTab(d, m) ? {
+            content: [{
+                type: "text",
+                text: `Closed tab ${m}.`
+            }]
+        } : I(`Tab ${m} not found.`)
+    }
+    if (e === "navigate") return _(Qn(d, u, r));
+    if (e === "find") return _(eo(d, u, r));
+    if (e === "get_page_text") return _(to(d, u, r));
+    if (e === "javascript_tool") {
+        const m = r.text ?? "";
+        if (h === null) {
+            const g = await oe(d, u);
+            if (g && "denied" in g) return g.denied
+        }
+        try {
+            const g = await n.evaluateInPreview(d, u, m),
+                w = g === void 0 ? "undefined" : JSON.stringify(g, null, 2);
+            return ge({
+                content: [{
+                    type: "text",
+                    text: w + f
+                }]
+            }, d, u)
+        } catch (g) {
+            return I(`javascript_tool failed: ${g instanceof Error?g.message:String(g)}`)
+        }
+    }
+    if (e === "read_console_messages") {
+        const {
+            onlyErrors: m,
+            pattern: g,
+            limit: w
+        } = r, C = await oe(d, u);
+        if (C && "denied" in C) return C.denied;
+        let b = n.getConsoleLogs(d, u, m ? "error" : "all");
+        const E = n.normalizePreviewOrigin(n.getPreviewUrlForTab(d, u) ?? "");
+        b = b.filter(S => {
+            const R = S.url ? n.normalizePreviewOrigin(S.url) : null;
+            return R === null || R === E
+        }), g && (b = b.filter(S => S.text.includes(g)));
+        const T = Math.min(Math.max(1, w ?? 50), 200),
+            k = b.length === 0 ? "No console logs." : b.slice(-T).map(S => `[${S.level}] ${S.text}`).join(`
+`);
+        return ge({
+            content: [{
+                type: "text",
+                text: k
+            }]
+        }, d, u)
+    }
+    if (e === "read_network_requests") {
+        const {
+            urlPattern: m,
+            requestId: g,
+            limit: w
+        } = r, C = await oe(d, u);
+        if (C && "denied" in C) return C.denied;
+        const b = n.normalizePreviewOrigin(n.getPreviewUrlForTab(d, u) ?? ""),
+            E = O => {
+                var L;
+                const D = n.normalizePreviewOrigin(O);
+                return D === null || n.isLocalhostHostname(((L = n.maybeURL(O)) == null ? void 0 : L.hostname) ?? "") ? !0 : b !== null && D === b
+            },
+            T = n.getNetworkEntries(d, u, "all");
+        if (g) {
+            const O = T.find(U => U.requestId === g);
+            if (!O || !E(O.url)) return I(`Response body not available for request ${g}.`);
+            const D = await n.getNetworkResponseBody(d, u, g);
+            if (!D) return I(`Response body not available for request ${g}.`);
+            const L = D.base64Encoded ? `(binary, ${D.body.length} chars base64)` : D.body.slice(0, 1e4);
+            return ge({
+                content: [{
+                    type: "text",
+                    text: L
+                }]
+            }, d, u)
+        }
+        let k = T.filter(O => E(O.url));
+        m && (k = k.filter(O => O.url.includes(m)));
+        const S = Math.max(1, w ?? 50),
+            R = k.slice(-S).map(O => {
+                let D = `[${O.requestId}] ${O.method} ${O.url}`;
+                return O.status !== void 0 && (D += ` → ${O.status} ${O.statusText}`), O.failed && (D += ` [FAILED: ${O.errorText}]`), D
+            }).join(`
+`);
+        return ge({
+            content: [{
+                type: "text",
+                text: R || "No network requests recorded."
+            }]
+        }, d, u)
+    }
+    async function A(m, g, w) {
+        const {
+            preset: C,
+            width: b,
+            height: E,
+            colorScheme: T
+        } = w;
+        try {
+            const k = {
+                    mobile: {
+                        w: 375,
+                        h: 812
+                    },
+                    tablet: {
+                        w: 768,
+                        h: 1024
+                    },
+                    desktop: {
+                        w: 1280,
+                        h: 800
+                    }
+                },
+                S = [];
+            if (C || b || E) {
+                const R = C ? k[C] : {
+                    w: b ?? 1280,
+                    h: E ?? 800
+                };
+                C === "desktop" ? (await n.clearViewport(m, g), S.push("Viewport reset to native size (desktop)")) : (await n.setViewport(m, g, R.w, R.h), S.push(`Viewport set to ${R.w}x${R.h}${C?` (${C})`:""}`))
+            }
+            return T && (await n.setColorScheme(m, g, T), S.push(`Color scheme set to ${T}`)), S.length === 0 ? I("Provide a preset (mobile/tablet/desktop), width/height, or colorScheme.") : {
+                content: [{
+                    type: "text",
+                    text: S.join(". ") + "."
+                }]
+            }
+        } catch (k) {
+            return I(`Resize failed: ${k instanceof Error?k.message:String(k)}`)
+        }
+    }
+    if (e === "resize_window") return _(A(d, u, r).then(m => (m.isError || xe(d, u), m)));
+    if (e === "preview_logs") {
+        const {
+            serverId: m,
+            level: g = "all",
+            lines: w = 50,
+            search: C
+        } = r, E = (m !== void 0 && n.sessionIdFromPreviewId(m) === o ? void 0 : m) ?? (n.isExternalPreviewEnabled() && o !== void 0 ? (y = n.launchStateTracker.getServersForWorktree(t).find(R => (R.sessionId === void 0 || R.sessionId === o) && (R.status === "running" || R.status === "starting"))) == null ? void 0 : y.serverId : d);
+        if (E === void 0) return I("No dev server is running. preview_logs takes a process serverId from preview_list.");
+        if (!Jt(E, o)) return {
+            content: [{
+                type: "text",
+                text: "No logs yet."
+            }]
+        };
+        let T = n.launchStateTracker.getLogs(E);
+        g === "error" && (T = T.filter(R => {
+            const O = R.line.toLowerCase();
+            return R.stream === "stderr" && (O.includes("error") || O.includes("exception") || O.includes("failed") || O.includes("fatal"))
+        })), C && (T = T.filter(R => R.line.includes(C)));
+        const k = Math.min(Math.max(1, w), 200),
+            S = T.slice(-k);
+        return S.length === 0 ? {
+            content: [{
+                type: "text",
+                text: g === "error" ? "No server errors found." : C ? `No logs matching "${C}".` : "No logs yet."
+            }]
+        } : {
+            content: [{
+                type: "text",
+                text: S.map(R => R.line).join("")
+            }]
+        }
+    }
+    if (e === "preview_console_logs") {
+        const {
+            level: m = "all",
+            lines: g = 50
+        } = r, w = n.getConsoleLogs(d, u, m);
+        if (w.length === 0) return {
+            content: [{
+                type: "text",
+                text: "No console logs."
+            }]
+        };
+        const C = Math.min(Math.max(1, g), 200),
+            E = w.slice(-C).map(k => `[${k.level}] ${k.text}`).join(`
+`),
+            T = w.length > C ? `
+
+(Showing last ${C} of ${w.length} entries.${C<200?" Use 'lines' parameter (max 200) to see more.":""})` : "";
+        return {
+            content: [{
+                type: "text",
+                text: E + T
+            }]
+        }
+    }
+    if (e === "preview_screenshot") try {
+        return {
+            content: [{
+                type: "image",
+                data: (await n.takeScreenshotCompressed(d, u)).data,
+                mimeType: "image/jpeg"
+            }]
+        }
+    } catch (m) {
+        return I(`Screenshot failed: ${m instanceof Error?m.message:String(m)}`)
+    }
+    if (e === "preview_snapshot") try {
+        return {
+            content: [{
+                type: "text",
+                text: await n.takeSnapshotText(d, u) || "No accessible content found."
+            }]
+        }
+    } catch (m) {
+        return I(`Snapshot failed: ${m instanceof Error?m.message:String(m)}`)
+    }
+    if (e === "preview_inspect") {
+        const {
+            selector: m,
+            styles: g
+        } = r;
+        try {
+            const w = await n.inspectElement(d, u, m, g);
+            return w ? {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify(w)
+                }]
+            } : {
+                content: [{
+                    type: "text",
+                    text: `Element not found: ${m}`
+                }]
+            }
+        } catch (w) {
+            return I(`Inspect failed: ${w instanceof Error?w.message:String(w)}`)
+        }
+    }
+    if (e === "preview_click") {
+        const {
+            selector: m,
+            doubleClick: g
+        } = r;
+        try {
+            return await n.click(d, u, m, {
+                doubleClick: g
+            }) ? {
+                content: [{
+                    type: "text",
+                    text: `Successfully ${g?"double-":""}clicked: ${m}` + f
+                }]
+            } : I(`Failed to click element: ${m}`)
+        } catch (w) {
+            return I(`Click failed: ${w instanceof Error?w.message:String(w)}`)
+        }
+    }
+    if (e === "preview_fill") {
+        const {
+            selector: m,
+            value: g
+        } = r;
+        try {
+            return await n.fill(d, u, m, g) ? {
+                content: [{
+                    type: "text",
+                    text: `Successfully filled: ${m}` + f
+                }]
+            } : I(`Failed to fill element: ${m}`)
+        } catch (w) {
+            return I(`Fill failed: ${w instanceof Error?w.message:String(w)}`)
+        }
+    }
+    if (e === "preview_eval") {
+        const {
+            expression: m
+        } = r;
+        try {
+            const g = await n.evaluateInPreview(d, u, m);
+            return {
+                content: [{
+                    type: "text",
+                    text: (g === void 0 ? "undefined" : JSON.stringify(g, null, 2)) + f
+                }]
+            }
+        } catch (g) {
+            return I(`Eval failed: ${g instanceof Error?g.message:String(g)}`)
+        }
+    }
+    if (e === "preview_network") {
+        const {
+            filter: m = "all",
+            requestId: g
+        } = r;
+        try {
+            if (g) {
+                const b = await n.getNetworkResponseBody(d, u, g);
+                if (!b) return I(`Response body not available for request ${g}. It may have been evicted from the browser cache.`);
+                if (b.base64Encoded) return {
+                    content: [{
+                        type: "text",
+                        text: `Response is binary (base64-encoded, ${b.body.length} chars). Not displayed.`
+                    }]
+                };
+                let E = b.body;
+                try {
+                    E = JSON.stringify(JSON.parse(E), null, 2)
+                } catch {}
+                const T = 1e4;
+                return E.length > T && (E = E.slice(0, T) + `
+... (truncated, ${b.body.length} total chars)`), {
+                    content: [{
+                        type: "text",
+                        text: E
+                    }]
+                }
+            }
+            const w = n.getNetworkEntries(d, u, m);
+            return w.length === 0 ? {
+                content: [{
+                    type: "text",
+                    text: m === "failed" ? "No failed requests." : "No network requests recorded."
+                }]
+            } : {
+                content: [{
+                    type: "text",
+                    text: w.map(b => {
+                        let E = `[${b.requestId}] ${b.method} ${b.url}`;
+                        return b.status !== void 0 && (E += ` → ${b.status} ${b.statusText}`), b.failed && (E += ` [FAILED: ${b.errorText}]`), E
+                    }).join(`
+`)
+                }]
+            }
+        } catch (w) {
+            return I(`Network request inspection failed: ${w instanceof Error?w.message:String(w)}`)
+        }
+    }
+    return e === "preview_resize" ? A(d, u, r).then(m => (m.isError || xe(d), m)) : I("Unknown tool")
+}
+
+function So(e, r, t) {
+    var a, l, c;
+    const o = n.getDeploymentMode().type === "3p" ? n.webSearchBuiltinToolName(r) : void 0,
+        i = n.resolveDisabledBuiltinTools(r);
+    if (o && ((l = (a = r.workspace) == null ? void 0 : a.disabledBuiltinTools) != null && l.includes("WebSearch")) && i.push(o), i.length > 0 && (t("%d tool(s) disabled via admin policy", i.length), e.disallowedTools = [...e.disallowedTools ?? [], ...i]), o) {
+        const d = n.findWebSearchBuiltin((c = r.mcp) == null ? void 0 : c.managedServers);
+        t("WebSearch built-in configured (provider=%s) — aliasing SDK WebSearch", d == null ? void 0 : d.provider), e.disallowedTools = [...e.disallowedTools ?? [], "WebSearch"], e.toolAliases = {
+            ...e.toolAliases,
+            WebSearch: o
+        }
+    }
+    const s = n.resolveBuiltinAskTools(r);
+    o && n.isWebSearchExplicitlyAsk(r) && s.push(o), s.length > 0 && (t("Built-in tools require approval via admin policy: %s", s.join(", ")), bo(e, s))
+}
+
+function bo(e, r) {
+    var i;
+    if (r.length === 0) return;
+    const t = new Set(r);
+    e.allowedTools = (e.allowedTools ?? []).filter(s => !t.has(s));
+    const o = r.map(s => `^${s}$`).join("|");
+    e.hooks = {
+        ...e.hooks,
+        PreToolUse: [...((i = e.hooks) == null ? void 0 : i.PreToolUse) ?? [], {
+            matcher: o,
+            hooks: [async s => s.hook_event_name !== "PreToolUse" ? {} : {
+                hookSpecificOutput: {
+                    hookEventName: "PreToolUse",
+                    permissionDecision: "ask",
+                    permissionDecisionReason: "Organization policy requires approval for this tool."
+                }
+            }]
+        }]
+    }
+}
+
+function To(e) {
+    return n.isFeatureEnabled("2800354941") ? Object.fromEntries(Object.entries(e).sort(([r], [t]) => r.localeCompare(t))) : e
+}
+
+function ko(e) {
+    return n.isFeatureEnabled("2800354941") ? [...e].sort((r, t) => r.path.localeCompare(t.path)) : e
+}
+
+function Eo(e) {
+    if (typeof e != "object" || e === null) return null;
+    const r = e;
+    if (typeof r.requestId != "number") return null;
+    switch (r.type) {
+        case "result":
+            return Array.isArray(r.hits) && r.hits.every(t => typeof t == "object" && t !== null && typeof t.sessionId == "string" && typeof t.snippet == "string" && typeof t.lastActivityAt == "number") ? {
+                type: "result",
+                requestId: r.requestId,
+                hits: r.hits
+            } : null;
+        case "error":
+            return typeof r.message == "string" ? {
+                type: "error",
+                requestId: r.requestId,
+                message: r.message
+            } : null;
+        default:
+            return null
+    }
+}
+class Co {
+    constructor() {
+        this.child = null, this.port = null, this.spawnPromise = null, this.nextRequestId = 1, this.pending = new Map
+    }
+    async search(r, t, o) {
+        if (r.length < 2 || t.length === 0) return [];
+        await this.ensureWorker();
+        const i = this.port;
+        if (!i) return [];
+        const s = this.nextRequestId++,
+            a = ["user", "assistant"];
+        return new Promise((l, c) => {
+            this.pending.set(s, {
+                resolve: l,
+                reject: c
+            }), i.postMessage({
+                type: "search",
+                requestId: s,
+                query: r,
+                limit: o.limit,
+                messageTypes: a,
+                sessions: t
+            })
+        }).finally(() => {
+            this.pending.delete(s)
+        })
+    }
+    async searchCandidates(r, t, o) {
+        const i = o.limit ?? 50,
+            s = o.maxSessions ?? 200,
+            a = t.sort((d, u) => u.lastActivityAt - d.lastActivityAt).slice(0, s),
+            l = new n.PQueue({
+                concurrency: 8
+            }),
+            c = (await Promise.all(a.map(d => l.add(async () => {
+                const u = await d.resolvePath();
+                return u ? {
+                    sessionId: d.sessionId,
+                    transcriptPath: u,
+                    lastActivityAt: d.lastActivityAt
+                } : null
+            })))).filter(d => d != null);
+        return this.search(r, c, {
+            limit: i
+        })
+    }
+    async ensureWorker() {
+        if (!(this.child && this.port)) return this.spawnPromise ? this.spawnPromise : (this.spawnPromise = this.spawn().finally(() => {
+            this.spawnPromise = null
+        }), this.spawnPromise)
+    }
+    async spawn() {
+        const r = n.getViteWorkerPath("transcript-search-worker", "transcriptSearchWorker.js");
+        try {
+            await H.access(r)
+        } catch {
+            n.logger.warn(`[cowork-search] worker not found at ${r}; falling through to empty results`);
+            return
+        }
+        const t = K.utilityProcess.fork(r, [], {
+                serviceName: "Claude Desktop Transcript Search"
+            }),
+            {
+                port1: o,
+                port2: i
+            } = new K.MessageChannelMain;
+        o.on("message", a => {
+            const l = Eo(a.data);
+            if (l === null) {
+                n.logger.warn("[cowork-search] ignoring malformed worker message");
+                return
+            }
+            const c = this.pending.get(l.requestId);
+            if (c) switch (this.pending.delete(l.requestId), l.type) {
+                case "result":
+                    c.resolve(l.hits);
+                    break;
+                case "error":
+                    n.logger.warn(`[cowork-search] worker error: ${l.message}`), c.reject(new Error(l.message));
+                    break
+            }
+        }), o.start(), t.on("exit", a => {
+            n.logger.info(`[cowork-search] worker exited (${a}); will refork on next search`);
+            const l = new Error(`transcript search worker exited (${a})`);
+            for (const c of this.pending.values()) c.reject(l);
+            this.pending.clear(), o.close(), this.child = null, this.port = null
+        }), await new Promise(a => {
+            t.once("spawn", () => {
+                t.postMessage({
+                    type: "init"
+                }, [i]), a(!0)
+            }), t.once("exit", () => a(!1))
+        }) && (n.logger.info("[cowork-search] worker forked"), this.child = t, this.port = o)
+    }
+}
+const Ao = new Co,
+    vt = `**Tiered apps:** some apps are granted at a restricted tier based on their category — the tier is displayed in the approval dialog and returned in the \`request_access\` response:
+- **Browsers** (Safari, Chrome, Firefox, Edge, Arc, etc.) → tier **"read"**: visible in screenshots, but clicks and typing are blocked. You can read what's already on screen. For navigation, clicking, or form-filling, use the Claude-in-Chrome MCP (tools named \`mcp__claude-in-chrome__*\`; load via ToolSearch if deferred).
+- **Terminals and IDEs** (Terminal, iTerm, VS Code, JetBrains, etc.) → tier **"click"**: visible and left-clickable, but typing, key presses, right-click, modifier-clicks, and drag-drop are blocked. You can click a Run button or scroll test output, but cannot type into the editor or integrated terminal, cannot right-click (the context menu has Paste), and cannot drag text onto them. For shell commands, use the Bash tool.
+- **Everything else** → tier **"full"**: no restrictions.
+
+The tier is enforced by the frontmost-app check: if a tier-"read" app is in front, \`left_click\` returns an error; if a tier-"click" app is in front, \`type\` and \`right_click\` return errors. The error tells you what tier the app has and what to do instead. \`open_application\` works at any tier — bringing an app forward is a read-level operation.
+
+**Link safety — treat links in emails and messages as suspicious by default.**
+- **Never click web links with computer-use tools.** If you encounter a link in a native app (Mail, Messages, a PDF, etc.), do NOT \`left_click\` it. Open the URL via the Claude-in-Chrome MCP instead.
+- **See the full URL before following any link.** Visible link text can be misleading — hover or inspect to get the real destination.
+- **Links from emails, messages, or unknown-sender documents are suspicious by default.** If the destination URL is at all unfamiliar or looks off, ask the user for confirmation before proceeding.
+- **Inside the Chrome extension** you can click links with the extension's tools, but the suspicion check still applies — verify unfamiliar URLs with the user.
+
+**Financial actions - do not execute trades or move money.** Budgeting and accounting apps (Quicken, YNAB, QuickBooks, etc.) are granted at full tier so you can categorize transactions, generate reports, and help the user organize their finances. But never execute a trade, place an order, send money, or initiate a transfer on the user's behalf - always ask the user to perform those actions themselves.`,
+    Po = `**App access:** all approved applications are granted at tier **"full"** — you can screenshot, click, type, scroll, and drag in any app the user approves via \`request_access\`, including browsers, terminals, and IDEs.
+
+**Link safety — treat links in emails and messages as suspicious by default.**
+- **See the full URL before following any link.** Visible link text can be misleading — hover or inspect to get the real destination first.
+- **Links from emails, messages, or unknown-sender documents are suspicious by default.** If the destination URL is at all unfamiliar or looks off, ask the user for confirmation before following it.
+- **Never log in, enter credentials, or fill payment details on a page you reached via a link in a message** — ask the user to confirm the page is legitimate first.
+
+**Financial actions - do not execute trades or move money.** Budgeting and accounting apps (Quicken, YNAB, QuickBooks, etc.) are granted at full tier so you can categorize transactions, generate reports, and help the user organize their finances. But never execute a trade, place an order, send money, or initiate a transfer on the user's behalf - always ask the user to perform those actions themselves.`,
+    Ro = "[ANT ONLY] synced_resources.txt";
+
+function Je(e) {
+    return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;")
+}
+async function et(e) {
+    try {
+        return await H.access(e), !0
+    } catch {
+        return !1
+    }
+}
+const Io = 3e4;
+async function ye(e, r) {
+    const t = `${n.claudeAiUrl()}/api/organizations/${e}${r}`,
+        o = new AbortController,
+        i = setTimeout(() => o.abort(), Io);
+    try {
+        const s = await K.net.fetch(t, {
+            headers: {
+                "Content-Type": "application/json"
+            },
+            signal: o.signal
+        });
+        if (!s.ok) {
+            const a = await s.text();
+            throw n.logger.error(`[ProjectSync] API error ${r}: ${s.status} ${a}`), new Error(`API error: ${s.status}`)
+        }
+        return await s.json()
+    } catch (s) {
+        throw s instanceof Error && s.name === "AbortError" ? new Error(`Request timed out: ${r}`) : s
+    } finally {
+        clearTimeout(i)
+    }
+}
+
+function Mo(e) {
+    const r = e.config;
+    switch (e.type) {
+        case "github": {
+            const t = String(r.owner ?? ""),
+                o = String(r.repo ?? ""),
+                i = String(r.branch ?? "");
+            return !t || !o ? null : {
+                url: `https://github.com/${t}/${o}/tree/${i}`,
+                title: o,
+                provider: "github",
+                config: {
+                    owner: t,
+                    repo: o,
+                    branch: i
+                }
+            }
+        }
+        case "gdrive": {
+            const t = String(r.uri ?? "");
+            return t ? {
+                url: t,
+                provider: "gdrive"
+            } : null
+        }
+        case "outlin": {
+            const t = String(r.outline_uri ?? "");
+            return t ? {
+                url: t,
+                provider: "outline"
+            } : null
+        }
+        case "mcpres": {
+            const t = r.resource,
+                o = t == null ? void 0 : t.uri;
+            return o ? {
+                url: o,
+                title: t.name,
+                provider: "mcp",
+                config: {
+                    server_uuid: r.server_uuid,
+                    mimeType: t.mimeType ?? void 0
+                }
+            } : null
+        }
+        default:
+            return null
+    }
+}
+async function xo(e, r) {
+    n.logger.info(`[ProjectSync] Starting sync for project ${e}`);
+    const t = await n.getLastActiveOrg();
+    if (!t) throw new Error("No active organization");
+    const o = N.join(r, e),
+        i = N.join(o, "docs"),
+        s = N.join(o, "files");
+    await n.mkdirPrivate(i), await n.mkdirPrivate(s);
+    const [a, l, c] = await Promise.all([ye(t, `/projects/${e}`), ye(t, `/projects/${e}/docs`), ye(t, `/projects/${e}/files`)]), [d, u] = await Promise.all([ye(t, `/memory?project_uuid=${e}`).then(y => y.memory ?? null).catch(y => {
+        n.logger.info(`[ProjectSync] Memory fetch failed for ${e}, leaving cache as-is: ${y instanceof Error?y.message:y}`)
+    }), ye(t, `/projects/${e}/syncs`).then(y => y.map(Mo).filter(m => m !== null)).catch(y => {
+        n.logger.info(`[ProjectSync] Syncs fetch failed for ${e}, leaving cache as-is: ${y instanceof Error?y.message:y}`)
+    })]);
+    await H.rm(i, {
+        recursive: !0,
+        force: !0
+    }), await n.mkdirPrivate(i);
+    let p = 0;
+    for (const y of l) {
+        if (!y.file_name || !y.content || y.file_name === Ro) continue;
+        const m = n.ensureTextExtension(N.basename(y.file_name)),
+            g = await n.validateWritePath(i, m);
+        if (!g) {
+            n.logger.warn(`[ProjectSync] Skipping doc with unsafe path: ${y.file_name}`);
+            continue
+        }
+        await n.writeFilePrivate(g, y.content), p++
+    }
+    const h = new n.PQueue({
+        concurrency: 6
+    });
+    let f = 0,
+        _ = 0;
+    const A = c.map(y => h.add(async () => {
+        try {
+            const m = N.extname(y.file_name).slice(1) || "bin",
+                g = `${y.file_uuid}.${m}`,
+                w = await n.validateWritePath(s, g);
+            if (!w) {
+                n.logger.warn(`[ProjectSync] Skipping file with unsafe path: ${y.file_name}`);
+                return
+            }
+            if (await et(w)) {
+                _++;
+                return
+            }
+            const C = `${w}.${yt.randomUUID()}.download`;
+            try {
+                await n.downloadFile({
+                    url: `${n.claudeAiUrl()}/api/organizations/${t}/files/${y.file_uuid}/contents`,
+                    tempFilePath: C
+                }), await H.rename(C, w), f++
+            } catch (b) {
+                throw await H.unlink(C).catch(() => {}), b
+            }
+        } catch (m) {
+            n.logger.warn(`[ProjectSync] Failed to download file ${y.file_name}:`, m)
+        }
+    }));
+    await Promise.all(A);
+    const v = N.join(o, "memory.md");
+    d !== void 0 && (d ? await n.writeFilePrivate(v, d) : await H.unlink(v).catch(() => {}));
+    const P = N.join(o, "syncs.json");
+    return u !== void 0 && (u.length > 0 ? await n.writeJsonAtomic(P, {
+        sources: u
+    }) : await H.unlink(P).catch(() => {})), await n.writeJsonAtomic(N.join(o, "metadata.json"), {
+        uuid: a.uuid,
+        name: a.name,
+        description: a.description,
+        prompt_template: a.prompt_template,
+        synced_at: new Date().toISOString()
+    }), n.logger.info(`[ProjectSync] Complete: ${p} docs, ${f} files downloaded, ${_} files cached`), {
+        projectUuid: e,
+        metadata: {
+            name: a.name,
+            description: a.description || "",
+            prompt_template: a.prompt_template
+        },
+        docsCount: p,
+        filesCount: f,
+        filesSkipped: _,
+        hostPath: o
+    }
+}
+const Ar = /^[a-zA-Z0-9_-]+$/;
+
+function Oo(e) {
+    if (e.length !== 1) return;
+    const r = e[0];
+    return Ar.test(r) ? r : void 0
+}
+async function $o(e) {
+    const {
+        projectCacheDir: r,
+        legacySessionStorageDir: t,
+        vmProcessName: o,
+        sessionId: i
+    } = e, s = e.projectUuids.filter(p => Ar.test(p) ? !0 : (n.logger.warn(`[ProjectSync] Rejecting invalid projectUuid: ${JSON.stringify(p)}`), !1)), a = [];
+    let l = 0,
+        c = 0;
+    if (s.length === 0) return {
+        projectContexts: a,
+        syncedCount: l,
+        failedCount: c
+    };
+    const d = async p => {
+        const h = await H.readFile(N.join(p, "metadata.json"), "utf-8");
+        return {
+            projectUuid: "",
+            metadata: JSON.parse(h),
+            hostPath: p
+        }
+    }, u = await Promise.allSettled(s.map(async p => {
+        if (t) {
+            const h = N.join(t, ".projects", p);
+            if (await et(N.join(h, "metadata.json"))) {
+                const f = await d(h);
+                return n.logger.info(`[ProjectSync] Legacy per-session dir for "${f.metadata.name}"`), {
+                    ...f,
+                    projectUuid: p
+                }
+            }
+        }
+        try {
+            const h = await xo(p, r);
+            return {
+                projectUuid: p,
+                metadata: h.metadata,
+                hostPath: h.hostPath
+            }
+        } catch (h) {
+            const f = N.join(r, p);
+            if (await et(N.join(f, "metadata.json"))) {
+                const _ = await d(f);
+                return n.logger.warn(`[ProjectSync] API sync failed for "${_.metadata.name}", using cached copy: ${h instanceof Error?h.message:h}`), {
+                    ..._,
+                    projectUuid: p
+                }
+            }
+            throw h
+        }
+    }));
+    for (let p = 0; p < u.length; p++) {
+        const h = u[p],
+            f = s[p];
+        if (h.status === "fulfilled") a.push({
+            uuid: f,
+            metadata: {
+                name: h.value.metadata.name,
+                description: h.value.metadata.description || "",
+                prompt_template: h.value.metadata.prompt_template
+            },
+            mountPath: `/sessions/${o}/mnt/.projects/${f}`,
+            hostPath: h.value.hostPath
+        }), l++;
+        else {
+            c++;
+            const _ = h.reason instanceof Error ? h.reason.message : String(h.reason);
+            n.logger.warn(`[ProjectSync] Failed to sync project ${f}: ${_}`), n.logCoworkEvent("lam_project_sync_failed", {
+                session_id: i,
+                project_uuid: f,
+                error_message: _
+            })
+        }
+    }
+    return {
+        projectContexts: a,
+        syncedCount: l,
+        failedCount: c
+    }
+}
+
+function Do(e, r) {
+    return e.length ? `
+<imported_knowledge>
+The user has attached knowledge from Claude.ai. It is mounted read-only at the paths below.
+Each directory may contain:
+- docs/ and files/ — uploaded knowledge
+- memory.md — what you've learned about the user in prior conversations within this context
+- syncs.json — linked external sources (repos, drive folders). Fetch these if relevant.
+
+${e.map(o=>{const i=o.metadata.prompt_template?`
+<custom_instructions>${Je(o.metadata.prompt_template)}</custom_instructions>`:"",s=r?o.hostPath??o.mountPath:o.mountPath;return`<knowledge_source>
+<name>${Je(o.metadata.name)}</name>
+<path>${Je(s)}</path>${i}
+</knowledge_source>`}).join(`
+    `)}
+</imported_knowledge>
+`: null
+}
+const No = `
+
+Computer use (screenshots + desktop control) is available but not yet enabled. If a task needs it, call request_access as you normally would — the user will see an enable prompt in-chat and can turn it on from there. The computer use MCP tools explicitly do not allow themselves to be used for operating a web browser (for safety reasons), do not request them if the user's task is a pure browser-based task; for full-featured browser use tasks, you should always instead use the Claude in Chrome mcp (if available) or direct the user to install the Claude in Chrome extension (https://code.claude.com/docs/en/chrome) if not.`,
+    Lo = `
+
+Computer use (screenshots + desktop control) is available but disabled. If a task needs it, tell the user to enable it at [Settings → Desktop app → Computer use](/settings/desktop).`;
+
+function Uo({
+    vmCwd: e,
+    hasComputerUseTeachMode: r,
+    browserCuAlwaysLoad: t,
+    safetyRules: o
+}) {
+    const i = r ? '**Teach mode:** if the user asks to be taught, walked through, or shown how to do something on their screen (for example "teach me how to use this application"), offer them a choice between an interactive walkthrough and a plain-text explanation — e.g. "Would you like me to (1) walk you through it interactively on your screen or (2) explain it in text?". Use teach mode (`request_teach_access` then `teach_step`) if they pick the walkthrough.\n\n' : "";
+    return `
+
+## Computer use (desktop control)
+
+You have a computer-use MCP available (tools named \`mcp__computer-use__*\`). It lets you take screenshots of the user's desktop and control it with mouse clicks, keyboard input, and scrolling.
+
+**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user's real computer — a different system from your sandbox. Files you create in the sandbox (under \`${e}\` or \`/tmp\`) do NOT exist on the user's machine. If you put a command or file path in the user's clipboard, or type into one of their apps, the path must exist on THEIR computer — not a sandbox path they can't reach.
+
+**Computer use is your only tool surface in this session.** Bash, file tools, web search, the Chrome MCP, and other connectors are NOT available — do not suggest them or ask the user to install them. Accomplish every task by driving the user's screen directly: \`request_access\` for the apps you need, then use \`screenshot\`, clicks, keyboard input, and \`computer_batch\` to operate them. This includes browsers — open a browser via \`open_application\` and click/type into it like any other native app.
+
+**Look before you assert.** If the user asks about app state (what's open, what's connected, what an app can do), take a screenshot and check before answering. Don't answer from memory — the user's setup or app version may differ from what you expect. If you're about to say an app doesn't support an action, that claim should be grounded in what you just saw on screen, not general knowledge. Similarly, \`list_granted_applications\` or a fresh \`screenshot\` is cheaper than a wrong assertion about what's running.
+
+` + (t ? "" : "**Loading via ToolSearch — load in bulk, not one-by-one:** if computer-use tools are in the deferred list, load them ALL in a single ToolSearch call: `{ query: \"computer-use\", max_results: 30 }`. The keyword search matches the server-name substring in every tool name, so one query returns the entire toolkit. Don't use `select:` for individual tools — that's one round-trip per tool.\n\n") + "**Access flow:** before any computer-use action you must call `request_access` with the list of applications you need. The user approves each application explicitly, and you may need to call it again mid-task if you discover you need another application.\n\n" + i + o
+}
+
+function Fo() {
+    return `
+
+## Scheduled tasks
+
+The \`${n.MCP_CREATE_SCHEDULED_TASK}\` tool sets up work that runs automatically — on a repeating schedule (every morning, weekly, hourly) or once at a specific future time (tomorrow at 3pm, in an hour).
+
+**Reach for it when** the user describes something they want to happen repeatedly or later: "every morning", "daily at 6am", "each Monday", "check each day and tell me if", "remind me tomorrow", "in an hour". The tell is that doing it once right now wouldn't fully satisfy the request.
+
+**Don't schedule** work the user wants done once now, or when the time phrase describes the subject rather than a cadence ("summarize yesterday's emails" is a one-off). When it could be read either way, do it once, then offer to schedule it.
+
+**Offer proactively** after completing something that naturally recurs — a briefing, status check, digest, inbox summary. Many users don't know scheduling is possible.
+
+To change an existing task's schedule or prompt, use \`${n.MCP_UPDATE_SCHEDULED_TASK}\`; \`${n.MCP_LIST_SCHEDULED_TASKS}\` shows what's already set up.
+
+**Examples**
+"Give me a news briefing every day at 6am" → create_scheduled_task with cronExpression "0 6 * * *".
+"Remind me in an hour to send that email" → create_scheduled_task with a fireAt one hour from now.
+"Summarize my unread email" (no time phrase) → do it now; afterward offer: "Want me to run this automatically each morning?"`
+}
+
+function qo(e) {
+    const r = e ? "You may load Chart.js, Grid.js, or Mermaid from CDN — those three only; anything else must be inline. " : "External scripts won't load here, so render charts and diagrams as inline SVG. ";
+    return `
+
+## Artifacts (live, persisted HTML views)
+
+The \`mcp__${n.COWORK_MCP_SERVER}__${n.CREATE_ARTIFACT}\` tool saves a self-contained HTML page that persists across sessions and pulls fresh data from the user's connectors each time it's opened. Think of an artifact as turning a one-off answer into a page the user can keep coming back to.
+
+**What's available inside the page.**
+- \`window.cowork.callMcpTool(name, args)\` calls any connector tool you list in \`mcp_tools\` and returns \`{content, structuredContent, isError}\`.
+- \`window.cowork.askClaude(prompt, data[])\` runs quick Haiku inference over data you just fetched — handy for summaries, classifications, or natural-language digests you'd rather not hard-code.
+- \`window.cowork.runScheduledTask(taskId)\` triggers one of the user's scheduled tasks by ID (userActivation required).
+
+Reads are transparently cached, so call them on page load; the view header already has a Reload button, so don't build your own. ` + r + `\`localStorage\` persists across reloads and app restarts, so you can remember the user's filter and sort choices.
+
+**Reach for an artifact when** the user will want to look at this again and the underlying data changes over time: a status page or tracker (project board, hiring pipeline, support queue), a recurring report (weekly metrics, team digest), an interactive explorer over connector data, or anything you'd otherwise render as a markdown table in chat that the user would plausibly want refreshed later.
+
+**Probe before you build.** Before writing an artifact that calls a connector tool, call that tool once in chat and look at the actual response shape. MCP wrappers often rename parameters and reshape output relative to the underlying API, so build your parser around what you observed, not what you assume. Note: in chat you see the tool's unwrapped text payload; inside the artifact, \`callMcpTool\` wraps it in \`{content, structuredContent, isError}\` — read \`r.structuredContent ?? JSON.parse(r.content[0].text)\`.
+
+**Offering without being asked.** When you've just answered a question by calling a connector and rendering the result as a list or table, finish the answer, then emit a prompt suggestion like "Turn this into a live artifact I can re-open later."
+
+**Examples**
+"What tasks are waiting on me?" → answer in chat from the connector, then suggest an artifact — the user will ask again tomorrow.
+"Give me a page I can check each morning for my open items" → ${n.CREATE_ARTIFACT} directly: the user asked for something persistent.
+"Explain how OAuth works" → no artifact: nothing to refresh, no connector data.`
+}
+const jo = `
+
+## Dispatch: routing work to task sessions
+
+You are the Dispatch orchestrator. The ONLY way to communicate with the user is the \`SendUserMessage\` tool. Plain text assistant replies are not rendered — the user will never see them. Everything you want the user to read (greetings, acknowledgments, clarifying questions, status updates, results, errors) MUST be a \`SendUserMessage\` call. If you are about to emit plain text, stop and call \`SendUserMessage\` instead.
+
+You do NOT perform tasks yourself. You route each user request to a dedicated task session using the \`{{dispatchStartTask}}\` tool, then relay the outcome via \`SendUserMessage\`.
+
+**You're texting, not writing a report.** The user is on a remote client (phone or browser tab), checking in while you coordinate on their machine. If they're chatting or asking something you can answer from memory, just answer in one \`SendUserMessage\` — don't send "on it" then the answer two seconds later. If you need a tool, emit the ack and the tool call in the SAME response as parallel calls, not ack-then-wait. When spawning or messaging a task, name which task. Only ack alone when it's a clarifying question you genuinely can't proceed without.
+
+**Match the ask.** Short question → short answer; they'll follow up if they want more. The failure mode isn't length, it's mismatch — answering a bigger question than asked, or padding with adjacent info. Gut check: if they could reasonably follow up to get this, don't preempt it. Skip "here's what I found" — get to what you found.
+
+**Break at thought boundaries.** When there's a lot to say, call \`SendUserMessage\` again instead of packing paragraphs into one message. The direct answer is one message; optional context is a separate one. No bullet lists, no headers, no bold. Conversational pacing, professional register, no text-speak.
+
+**Routing heuristics:**
+- New logical task (distinct goal, unrelated to running tasks) → \`{{dispatchStartTask}}\` with a short descriptive title (3-6 words).
+- Follow-up, clarification, or correction for a task you already started → \`{{dispatchSendMessage}}\` with that task's session_id.
+- To check a task's progress or outcome → \`{{dispatchReadTranscript}}\`.
+- Multiple distinct requests in one user message → start multiple tasks.
+
+**You've already greeted the user.** Before their first message, the UI showed them these messages from you:
+
+{{dispatchSeedMessages}}
+
+Don't repeat them. If the user follows up on something you said there, answer as if you remember saying it.
+
+**File access:** If the user's request involves files on their computer (e.g. "what's in my Downloads?"), don't tell them you lack access or ask them to pick a folder. Spawn a task — include the host path (e.g. \`~/Downloads\`) in the prompt and the task will request access itself. Paths under \`{{cwd}}\` are local to your session and don't exist in tasks; don't pass those. Describe the goal; don't script the approach.
+
+**Sharing files:** To send a file back to the user, pass its absolute path in the \`attachments\` array on SendUserMessage. The file is uploaded and rendered as a download card on the remote client. Don't put file paths in the message body or markdown links — the user is on a remote client and can't reach paths on this machine. Tasks that take a screenshot with \`save_to_disk: true\` get back a saved path and will mention it — pass that path straight to \`attachments\`.
+
+**Voice:** Dispatch is a mobile-first, conversational interface. Responses should feel like texting a knowledgeable colleague — substantive but respectful of attention. Aim for scannable, not skimmable. When relaying task results, distill to what's actionable and offer to go deeper. Avoid overusing em dashes.`;
+
+function Bo() {
+    const e = new Date,
+        r = new Intl.DateTimeFormat("en-US", {
+            weekday: "long"
+        }).format(e),
+        t = new Intl.DateTimeFormat("en-US", {
+            month: "long"
+        }).format(e),
+        o = e.getDate(),
+        i = e.getFullYear();
+    return `${r}, ${t} ${o}, ${i}`
+}
+
+function Ho() {
+    return `Web search: the current date is ${new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric"}).format(new Date)}. Use this year when searching for recent information, documentation, or current events.`
+}
+
+function Pr() {
+    return `${n.WEB_SEARCH_TOOL_DESCRIPTION}
+
+${Ho()}`
+}
+
+function Wo(e, r) {
+    if (!e.includes("{{skillsDir}}/skills/")) return e;
+    const t = /\{\{skillsDir\}\}\/skills\/([^/\s]+)\/SKILL\.md/g,
+        o = a => {
+            for (const l of a.matchAll(t))
+                if (!r.has(l[1])) return !0;
+            return !1
+        },
+        i = e.split(`
+`),
+        s = new Array(i.length).fill(!1);
+    for (let a = 0; a < i.length; a++) o(i[a]) && (s[a] = !0, /^\s*Claude:/.test(i[a]) && /^\s*User:/.test(i[a - 1] ?? "") && (s[a - 1] = !0, a >= 2 && i[a - 2].trim() === "" && (s[a - 2] = !0)));
+    return i.filter((a, l) => !s[l]).join(`
+`)
+}
+async function Go({
+    vmProcessName: e,
+    userSelectedFolders: r,
+    hostOnlyFolders: t,
+    baseSystemPrompt: o,
+    rendererAppends: i,
+    spVariant: s,
+    model: a,
+    modelIdentity: l,
+    accountName: c,
+    emailAddress: d,
+    localPlugins: u,
+    accountContext: p,
+    projectContexts: h,
+    remotePluginOptions: f,
+    documentsPluginActive: _ = !1,
+    documentFunnelEnabled: A = !1,
+    mountSkeletonHome: v,
+    isBridgeSession: P,
+    isDispatchChild: y,
+    isScheduledTaskSession: m,
+    hasScheduledTasks: g,
+    dispatchAgentNameEnabled: w,
+    hasComputerUse: C,
+    hasComputerUseTeachMode: b,
+    browserCuAlwaysLoad: E = !1,
+    computerUseOptedOutHint: T,
+    credentialAutofillPrompt: k,
+    hostLoopMode: S,
+    hostCwd: R,
+    hasImagine: O,
+    imagineSystemPrompt: D,
+    hasHtmlArtifacts: L,
+    hostSkillsPluginPath: U,
+    skillsEnabled: se = !0,
+    pluginsEnabled: he = !0,
+    suggestSkillsEnabled: be = !1,
+    canSaveSkill: Te = !1,
+    hostOutputsDir: Ct,
+    hostUploadsDir: ke,
+    cuOnlyMode: At = !1,
+    hasWebSearchTool: Qr = !1,
+    onPluginSkills: qe,
+    remoteMcpServers: Qa,
+    spSectionPrompts: W,
+    onSections: ae
+}) {
+    var Lt;
+    const je = [],
+        te = {},
+        F = (x, q) => {
+            je.push(q), te[x] = (te[x] ?? 0) + q.length
+        };
+    if (Qr && !At && F("web_search_builtin", Pr()), A && _ && S) {
+        const x = `${Ct}/${gn.COWORK_SCRATCH_DIRNAME}`;
+        F("document_funnel", `## Creating documents
+When you create a new document for the user (a report, story, letter - anything you'd use doc_create for), create it as a working document: doc_create with a path under ${x}/ and the .cd extension, named after the document's title (for example "${x}/Trip Report.cd"). Always pass an absolute path.
+The app shows working documents in the Documents panel with a rich editor, and the user exports DOCX/PDF/Markdown from there. Do not write .docx or .pdf files directly unless the user explicitly asks for a raw file, and do not ask the user to choose a file format for a new document - the working document is the format; ask about content, not formats.`)
+    }
+    if (h != null && h.length) {
+        const x = Do(h, S);
+        x && F("projects", x)
+    }
+    let $ = (s == null ? void 0 : s.mode) === "replace" ? [s.text, ...i ?? []].filter(Boolean).join(`
+
+`) : o ?? "";
+    (s == null ? void 0 : s.mode) === "replace" ? te.sp_variant_replace = s.text.length: (s == null ? void 0 : s.mode) === "append" && F("sp_variant_append", s.text), $ = $.replaceAll("{{promptCacheBoundary}}", () => ce.SYSTEM_PROMPT_DYNAMIC_BOUNDARY);
+    const Zr = Bo();
+    $ = $.replaceAll("{{currentDateTime}}", () => Zr);
+    const en = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    $ = $.replaceAll("{{currentTimezone}}", () => en);
+    const B = `/sessions/${e}`,
+        me = S && R ? R : B;
+    S && ke && ($ = $.replaceAll("{{cwd}}/mnt/uploads", () => ke)), $ = $.replaceAll("{{cwd}}", () => me);
+    const Ee = r && r.length > 0 ? S ? de.deriveMountNamesIncremental(r, de.HOST_LOOP_RESERVED_MOUNT_NAMES) : de.deriveMountNames(r) : new Map,
+        Pt = new Map((t ?? []).map(x => [x.path, x])),
+        tn = x => x !== void 0 && !(x.kind === "cloud-sync" && x.mountable),
+        Be = (r ?? []).filter(x => !tn(Pt.get(x))),
+        fe = S ? r ?? [] : Be,
+        Ce = fe.length > 0,
+        rn = r == null ? void 0 : r[0],
+        He = Be[0],
+        nn = S ? rn ?? R ?? me : He ? `${B}/mnt/${Ee.get(He)??N.basename(He)}` : `${B}/mnt/outputs`;
+    $ = $.replaceAll("{{workspaceFolder}}", () => nn);
+    const Rt = x => {
+            const q = Pt.get(x);
+            return q ? `  (${n.folderKindHints(q).tag})` : ""
+        },
+        It = x => S ? `   - Folder: ${x}${Rt(x)}` : `   - Folder: ${B}/mnt/${Ee.get(x)??N.basename(x)}`,
+        on = Ce ? fe.map(It).join(`
+`) : "",
+        Mt = (t ?? []).map(n.folderKindHints),
+        We = [...new Set(Mt.map(x => x.copyHint).filter(x => x !== ""))],
+        xt = S && We.length > 0 ? `
+   ${We.join(" ")}` : "",
+        Ot = (Lt = Mt.find(x => x.bulkHint !== void 0)) == null ? void 0 : Lt.bulkHint,
+        $t = S && Ot !== void 0 ? `
+   ${Ot}.` : "",
+        Dt = on + xt + $t;
+    $ = $.replaceAll("{{userSelectedFolders}}", () => Dt);
+    const {
+        prompt: Nt,
+        pluginSkills: sn,
+        managedSkillNames: an
+    } = await yn.skillsPluginManager.generateSkillsSystemPrompt(e, u, p, f, S, U, !0, se, he, be, Te, _), ln = S ? U ?? "(no skills directory — skip skill reads)" : `${B}/mnt/.claude`;
+    $ = Wo($, an), $ = $.replaceAll("{{skillsDir}}", () => ln), $ = $.replaceAll("{{modelName}}", () => a || "Claude"), l ? $ = $.replaceAll("{{modelIdentity}}", () => l) : $ = $.replace(/\n?\{\{modelIdentity\}\}/g, ""), $ = $.replaceAll("{{accountName}}", () => c || ""), $ = $.replaceAll("{{emailAddress}}", () => d || "");
+    let Ae;
+    if (!Ce) Ae = "Claude does not have access to the user's files. Claude has a temporary working folder where it can create new files for the user to download.";
+    else if (fe.length === 1) {
+        const x = "Claude has access to the folder the user selected and can read and modify files in it.";
+        Ae = S && Rt(fe[0]) ? `${x} The selected folder is:
+` + It(fe[0]) + xt + $t : x
+    } else Ae = `Claude has access to multiple folders the user selected and can read and modify files in them. The user-selected folders are:
+` + Dt + `
+When the user's request pertains to a specific folder, Claude should work in and save outputs to that folder rather than always defaulting to the first one.`;
+    $ = $.replaceAll("{{workspaceContext}}", () => Ae);
+    const cn = Ce ? "yes" : "no";
+    if ($ = $.replaceAll("{{folderSelected}}", () => cn), qe == null || qe(sn), Nt && (n.logger.info("[LocalAgentModeSessionManager] Appending skills to system prompt"), F("skills", Nt)), v && !S) {
+        const x = process.platform === "win32",
+            q = x ? "C:/Users/alice/Documents/project" : "/Users/alice/Documents/project",
+            Q = x ? "c/Users/alice/Documents/foo" : "Users/alice/Documents/foo",
+            re = x ? "C:/Users/alice/Documents/foo" : "/Users/alice/Documents/foo",
+            Z = `
+
+## Exploring the host filesystem
+
+A read-only index of the host filesystem is mounted at \`${B}/mnt/.host-home\`. You can list directories and see file names, sizes, and modification times (via \`ls\`, \`find\`, \`stat\`), but file contents cannot be read — \`cat\` returns EACCES. Use this index to discover where the user keeps relevant files, then call the \`${n.REQUEST_COWORK_DIRECTORY}\` tool with the absolute host \`path\` (e.g. \`path: "${q}"\`). Use forward slashes (/) in file paths, including on Windows. Paths seen under \`.host-home\` correspond to absolute host paths: \`${B}/mnt/.host-home/${Q}\` is \`${re}\`.`;
+        F("host_fs_skeleton", n.substituteSection(n.resolveSection(W, n.SP_SECTION_KEYS.hostFsSkeleton, Z), {
+            vmCwd: B,
+            requestDir: n.REQUEST_COWORK_DIRECTORY,
+            egHostPath: q,
+            egSkeletonSub: Q,
+            egHostAbs: re
+        }, n.SP_SECTION_KEYS.hostFsSkeleton))
+    }
+    $ = $.replace("[explains that the user could start a new task and select a folder for Claude to work in]", () => `[use the ${n.REQUEST_COWORK_DIRECTORY} tool to ask for which directory to work in]`);
+    const Ge = n.getAllowedMountRoots();
+    if (Ge && Ge.length > 0 && F("allowed_workspace_roots", `
+
+## Allowed workspace roots
+
+The administrator has restricted which folders \`${n.REQUEST_COWORK_DIRECTORY}\` can mount. Only request paths inside these roots — anything outside is denied without prompting the user.
+` + Ge.map(x => `- ${x.replace(/\\/g,"/")}`).join(`
+`)), P) {
+        const x = n.getFeatureValue("1677081600", ""),
+            q = n.resolveSection(W, n.SP_SECTION_KEYS.dispatchOrchestratorBase, jo),
+            Q = x.length > 0 ? q + `
+
+` + x : q,
+            re = n.substituteSection(Q, {
+                dispatchStartTask: n.DISPATCH_START_TASK,
+                dispatchSendMessage: n.DISPATCH_SEND_MESSAGE,
+                dispatchReadTranscript: n.READ_TRANSCRIPT,
+                dispatchSeedMessages: n.getDispatchSeedMessages(w ?? !1, n.resolveSection(W, n.SP_SECTION_KEYS.dispatchSeedGreeting, n.DISPATCH_SEED_GREETING_FALLBACK)).map(ze => `> ${ze.replaceAll(`
+`,`
+> `)}`).join(`
+
+`),
+                cwd: me
+            }, n.SP_SECTION_KEYS.dispatchOrchestratorBase);
+        F("dispatch_orchestrator", re);
+        const Z = n.getParsedFeatureValueForKey("254738541", "prompt", null, n.stringType().nullable());
+        Z && F("proactivity", `
+
+${Z}`)
+    }
+    if (At) return F("cu_only", Uo({
+        vmCwd: B,
+        hasComputerUseTeachMode: b,
+        browserCuAlwaysLoad: E,
+        safetyRules: n.resolveSection(W, n.SP_SECTION_KEYS.cuSafetyRulesCuOnly, Po)
+    })), O && D && F("imagine", `
+
+${D}`), te.base = $.length, ae == null || ae(te), Qt($, je.join(`
+`));
+    if (y) {
+        const x = S ? " For folders not in the bash mount table below, use this tool — bash only reaches what's mounted." : " Don't probe the filesystem with shell commands — you won't find user files that way, only sandbox paths.",
+            q = `
+
+## Requesting file system access
+
+If you need access to files on the user's computer, load the \`mcp__cowork__${n.REQUEST_COWORK_DIRECTORY}\` tool (via ToolSearch if deferred) and call it with the specific \`path\` (e.g. \`path: "~/Downloads"\`).` + x,
+            Q = S ? n.SP_SECTION_KEYS.dispatchChildFsHostLoop : n.SP_SECTION_KEYS.dispatchChildFsVm;
+        F("dispatch_child_fs", n.substituteSection(n.resolveSection(W, Q, q), {
+            requestDir: n.REQUEST_COWORK_DIRECTORY
+        }, Q))
+    }
+    if (C) {
+        const x = b ? '**Teach mode:** if the user asks to be taught, walked through, or shown how to do something on their screen (for example "teach me how to use this application"), offer them a choice between an interactive walkthrough and a plain-text explanation — e.g. "Would you like me to (1) walk you through it interactively on your screen or (2) explain it in text?". Use teach mode (`request_teach_access` then `teach_step`) if they pick the walkthrough.\n\n' : "",
+            q = `
+
+## Computer use (desktop control)
+
+You have a computer-use MCP available (tools named \`mcp__computer-use__*\`). It lets you take screenshots of the user's desktop and control it with mouse clicks, keyboard input, and scrolling.
+
+**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user's real computer — a different system from your sandbox. Files you create in the sandbox (under \`${B}\` or \`/tmp\`) do NOT exist on the user's machine. If you put a command or file path in the user's clipboard, or type into one of their apps, the path must exist on THEIR computer — not a sandbox path they can't reach.
+
+**Pick the right tool for the app.** Each tier trades speed/precision against coverage:
+
+1. **Dedicated MCP for the app** — if the task is in an app that has its own MCP (Slack, Gmail, Calendar, Linear, etc.) and that MCP is connected, use it. API-backed tools are fast and precise.
+2. **Chrome MCP** (\`mcp__claude-in-chrome__*\`) — if the target is a web app and there's no dedicated MCP for it, use the browser tools. DOM-aware, much faster than clicking pixels. If the Chrome extension isn't connected, ask the user to install it rather than falling through to computer use.
+3. **Computer use** — for native desktop apps (Maps, Notes, Finder, Photos, System Settings, any third-party native app) and cross-app workflows. Computer use IS the right tool here — don't decline a native-app task just because there's no dedicated MCP for it.
+
+This is about what's available, not error handling — if a dedicated MCP tool errors, debug or report it rather than silently retrying via a slower tier.
+
+**Look before you assert.** If the user asks about app state (what's open, what's connected, what an app can do), take a screenshot and check before answering. Don't answer from memory — the user's setup or app version may differ from what you expect. If you're about to say an app doesn't support an action, that claim should be grounded in what you just saw on screen, not general knowledge. Similarly, \`list_granted_applications\` or a fresh \`screenshot\` is cheaper than a wrong assertion about what's running.
+
+` + (E ? "" : '**Loading via ToolSearch — load in bulk, not one-by-one:** if computer-use tools are in the deferred list, load them ALL in a single ToolSearch call: `{ query: "computer-use", max_results: 30 }`. The keyword search matches the server-name substring in every tool name, so one query returns the entire toolkit.\n\nFor the Chrome MCP (`mcp__claude-in-chrome__*`), load every tool you expect to need in ONE ToolSearch call — the `select:` query accepts a comma-separated list — never one call per tool. Start with the core set:\n\n`ToolSearch { query: "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__browser_batch", max_results: 6 }`\n\nAdd task-specific tools to the same call when the task obviously needs them: `read_console_messages` / `read_network_requests` for debugging, `form_input` for forms, `gif_creator` for recordings, `javascript_tool` for page scripting.\n\n') + "**Access flow:** before any computer-use action you must call `request_access` with the list of applications you need. The user approves each application explicitly, and you may need to call it again mid-task if you discover you need another application.\n\n" + x;
+        F("computer_use", n.substituteSection(n.resolveSection(W, n.SP_SECTION_KEYS.computerUseMain, q), {
+            vmCwd: B,
+            hasComputerUseTeachMode: !!b,
+            showToolSearchHint: !E
+        }, n.SP_SECTION_KEYS.computerUseMain) + n.resolveSection(W, n.SP_SECTION_KEYS.cuSafetyRules, vt))
+    } else T === "stub" ? F("cu_opted_out", n.resolveSection(W, n.SP_SECTION_KEYS.cuOptedOutStub, No)) : T === "settings" && F("cu_opted_out", n.resolveSection(W, n.SP_SECTION_KEYS.cuOptedOutSettings, Lo));
+    if (O && D && F("imagine", `
+
+${D}`), g && !P && !y && !m && F("scheduled_tasks", n.substituteSection(n.resolveSection(W, n.SP_SECTION_KEYS.scheduledTasks, Fo()), {
+            createTask: n.MCP_CREATE_SCHEDULED_TASK,
+            updateTask: n.MCP_UPDATE_SCHEDULED_TASK,
+            listTasks: n.MCP_LIST_SCHEDULED_TASKS
+        }, n.SP_SECTION_KEYS.scheduledTasks)), L && !P && !y) {
+        const x = !n.getManagedConfig().telemetry.disableNonessentialServices;
+        F("html_artifacts", n.substituteSection(n.resolveSection(W, n.SP_SECTION_KEYS.htmlArtifacts, qo(x)), {
+            createArtifactTool: `mcp__${n.COWORK_MCP_SERVER}__${n.CREATE_ARTIFACT}`,
+            createArtifact: n.CREATE_ARTIFACT,
+            allowCdnLibraries: x
+        }, n.SP_SECTION_KEYS.htmlArtifacts))
+    }
+    if (S) {
+        const x = `${B}/mnt/outputs`,
+            q = Ct ?? me,
+            re = `- ${q} → ${x}/  (your outputs directory${q===me?" — cwd":""})`,
+            Z = Be,
+            ze = Z.length > 0 ? Z.map(Ut => {
+                const fn = Ee.get(Ut);
+                return `- ${Ut} → ${B}/mnt/${fn}/`
+            }).join(`
+`) + `
+${re}` : re,
+            Ke = Z[0],
+            dn = Ke ?? q,
+            un = Ke ? `${B}/mnt/${Ee.get(Ke)}` : x,
+            pn = Ce ? "" : `
+
+No user folders are connected yet. To work with the user's files, request a folder with mcp__cowork__${n.REQUEST_COWORK_DIRECTORY}.`,
+            hn = U ? `
+- ${U}/skills → ${B}/mnt/.claude/skills/ (read-only)` : "",
+            mn = ke ? `
+- ${ke} → ${B}/mnt/uploads/ (read-only, attached files)` : "";
+        F("host_loop_shell", `
+
+## Shell access
+
+Shell commands use \`mcp__${n.WORKSPACE_MCP_SERVER}__${n.WORKSPACE_BASH}\` and run in an isolated Linux environment. Each call is independent — no cwd or env carryover between calls. Use absolute paths.
+
+Paths in bash differ from what file tools (Read/Write/Edit) see:
+${ze}${hn}${mn}
+
+` + (We.length > 0 ? `Folders annotated "bash ... cannot see this path" in the workspace section above are not mounted here; use Read/Write/Edit/Grep/Glob for those.
+
+` : "") + `So a file you Read at ${dn}/foo.txt is reached in bash at ${un}/foo.txt — use the mapping above to translate.` + (U ? " Skill scripts can be run via bash using the VM path above." : "") + `${pn}
+
+The Linux environment boots in the background. If bash returns "Workspace still starting", wait a few seconds and retry.`)
+    }
+    return te.base = $.length, ae == null || ae(te), Qt($, je.join(`
+`))
+}
+
+function zo({
+    vmProcessName: e,
+    hostLoopMode: r,
+    hostCwd: t,
+    spSectionPrompts: o
+}) {
+    const i = `/sessions/${e}`,
+        s = r ? `## Cowork environment
+
+You are running as a subagent inside a Cowork session on the user's machine. File operations reach the user's real filesystem (working directory \`${t??i}\`), so only read or write inside folders the user has attached to this session. Shell commands run via \`mcp__${n.WORKSPACE_MCP_SERVER}__${n.WORKSPACE_BASH}\` in an isolated Linux environment where those folders are mounted under \`${i}/mnt/\`.` : `## Cowork environment
+
+You are running as a subagent inside a Cowork session. Shell commands execute in an isolated Linux sandbox rooted at \`${i}\` — files created there (or under \`/tmp\`) exist only in the sandbox, not on the user's real computer. User-attached folders are mounted under \`${i}/mnt/\`.`,
+        a = r ? n.SP_SECTION_KEYS.subagentEnvHostLoop : n.SP_SECTION_KEYS.subagentEnvVm,
+        l = n.resolveSection(o, a, s);
+    return `
+
+${n.substituteSection(l,{vmCwd:i,hostCwd:t??i,workspaceBash:`mcp__${n.WORKSPACE_MCP_SERVER}__${n.WORKSPACE_BASH}`},a)}`
+}
+
+function Qt(e, r) {
+    const t = e.indexOf(ce.SYSTEM_PROMPT_DYNAMIC_BOUNDARY);
+    return t === -1 ? [e + r] : [e.slice(0, t), ce.SYSTEM_PROMPT_DYNAMIC_BOUNDARY, e.slice(t + ce.SYSTEM_PROMPT_DYNAMIC_BOUNDARY.length) + r]
+}
+
+function Ko(e, r, t) {
+    const o = new Set,
+        i = Math.max(0, r.length - t);
+    for (let a = i; a < r.length; a++) o.add(r[a].uuid);
+    const s = [];
+    for (const a of e) a.uuid !== void 0 && o.has(a.uuid) || (a.uuid !== void 0 && o.add(a.uuid), s.push(a));
+    return s
+}
+
+function Yo(e, r) {
+    const t = [],
+        o = [];
+    for (const a of r) typeof a.timestamp == "string" ? t.push(a) : o.push(a);
+    if (t.length === 0) return [...e, ...o];
+    t.sort((a, l) => a.timestamp < l.timestamp ? -1 : a.timestamp > l.timestamp ? 1 : 0);
+    const i = [];
+    let s = 0;
+    for (const a of e) {
+        const l = a.timestamp;
+        for (; s < t.length && (!l || t[s].timestamp < l);) i.push(t[s++]);
+        i.push(a)
+    }
+    for (; s < t.length;) i.push(t[s++]);
+    for (const a of o) i.push(a);
+    return i
+}
+const Vo = new Set(["auth_error", "session_stale_relogin", "rate_limit", "network_error", "connection_refused", "filesystem_error", "git_not_found", "git_checkout_failed", "worktree_hook_failed", "remote_worktree_failed", "cwd_not_found", "cwd_too_long", "remote_cwd_missing", "sdk_binary_missing", "sdk_binary_arch_mismatch", "sdk_binary_corrupt", "disclaimer_binary_missing", "spawn_failed", "process_interrupted", "renderer_cascade", "cli_fastfail", "cli_shutdown_crash_benign", "bun_crash", "bun_cwd_eperm", "bun_stack_overflow", "dll_not_found", "trust_required", "os_too_old", "claudecode_nested", "otel_console_exporter", "proxy_unreachable", "endpoint_security_blocked", "app_control_blocked", "policy_denied", "wsl_policy_denied", "binary_locked", "settings_write_denied", "bypass_permissions_root_blocked", "cli_flag_unsupported", "library_error", "sandbox_deps_missing"]);
+
+function Jo({
+    error: e,
+    source: r,
+    errorCategory: t,
+    rawOutput: o,
+    exitCode: i,
+    ntstatusName: s,
+    stderrTail: a,
+    session: l
+}) {
+    if (Vo.has(t)) return !1;
+    const c = n.toSentrySafeCategory(t),
+        d = e instanceof Error ? e : new Error(typeof e == "string" ? e : `Non-Error thrown: ${String(e)}`),
+        u = o ? d.message.replace(/Output:[\s\S]*$/, () => `Output: ${n.redactCliOutput(o)}`) : n.redactCliOutputInErrorMessage(d.message),
+        p = u === d.message ? d : Object.assign(new Error(u), {
+            name: d.name,
+            stack: d.stack,
+            cause: d.cause
+        });
+    return n.sentryMainShimExports.captureException(p, {
+        tags: {
+            feature: "ccd",
+            ccd_source: r,
+            ccd_error_category: c,
+            ccd_is_ssh: String(l.isSsh),
+            ccd_is_resume: String(l.isResume ?? !1),
+            ccd_is_startup_error: String(l.isStartupError ?? !1),
+            ...l.permissionMode && {
+                ccd_permission_mode: l.permissionMode
+            },
+            ...i !== void 0 && {
+                ccd_exit_code: String(i)
+            },
+            ...s && {
+                ccd_ntstatus: s
+            }
+        },
+        extra: {
+            session_id: l.sessionId,
+            cli_session_id: l.cliSessionId,
+            cli_stderr_tail: a ? a.slice(-500) : void 0,
+            model: l.model,
+            has_worktree: l.hasWorktree,
+            mcp_server_count: l.mcpServerCount,
+            cwd_length: l.cwdLength,
+            message_buffer_size: l.messageBufferSize,
+            session_age_ms: l.sessionAgeMs,
+            warm_duration_ms: l.warmDurationMs,
+            ...!(e instanceof Error) && {
+                original_non_error_value: String(e)
+            }
+        },
+        fingerprint: ["ccd", r, c, ...i !== void 0 ? [String(i)] : [], "{{ default }}"]
+    }), !0
+}
+const Xo = "self";
+
+function we(e) {
+    var r;
+    return ((r = e.getPermissionMode) == null ? void 0 : r.call(e)) === void 0 ? {
+        content: [{
+            type: "text",
+            text: "This tool requires user approval, which isn't available in this context."
+        }],
+        isError: !0
+    } : null
+}
+const X = "ccd_session_mgmt",
+    tt = "list_sessions",
+    rt = "get_session",
+    nt = "search_session_transcripts",
+    ot = "list_events",
+    it = "archive_session",
+    st = "set_session_title",
+    at = "send_message",
+    Qo = `mcp__${X}__${tt}`,
+    Zo = `mcp__${X}__${rt}`,
+    ei = `mcp__${X}__${nt}`,
+    ti = `mcp__${X}__${ot}`,
+    ri = `mcp__${X}__${it}`,
+    ni = `mcp__${X}__${st}`,
+    oi = `mcp__${X}__${at}`,
+    ii = `List the user's other CCD sessions (active and optionally archived).
+
+Returns a compact JSON array sorted by most recent activity. The current session is excluded. Use this to answer "what other sessions do I have", to find a session by title/branch/PR, or — after a PR you opened has merged — to locate the corresponding session and offer to archive it via archive_session.`,
+    si = {
+        type: "object",
+        properties: {
+            include_archived: {
+                type: "boolean",
+                description: "Include sessions already archived. Default false."
+            },
+            limit: {
+                type: "number",
+                description: "Max sessions to return (most recent first). Default 20."
+            }
+        }
+    },
+    ai = `Get detailed metadata for a single CCD session by ID.
+
+Returns the same fields as a list_sessions entry plus creation time, model, worktree/branch info, whether the session is remote, scheduled-task linkage, and agent. Metadata only — no conversation content (use list_events for that). Use this when you have a session_id and want its full configuration without re-listing everything.`,
+    li = {
+        type: "object",
+        properties: {
+            session_id: {
+                type: "string",
+                description: "The sessionId to look up (from list_sessions / search_session_transcripts). Must not be the current session."
+            }
+        },
+        required: ["session_id"]
+    },
+    ci = `Full-text search across the user/assistant messages of other CCD session transcripts.
+
+Returns one hit per matching session with a snippet around the match. Use this to find which session previously discussed a topic, error message, file, or decision.`,
+    di = {
+        type: "object",
+        properties: {
+            query: {
+                type: "string",
+                description: "Search string (min 2 chars). Substring match, case-insensitive."
+            },
+            include_archived: {
+                type: "boolean",
+                description: "Include archived sessions. Default false."
+            },
+            limit: {
+                type: "number",
+                description: "Max hits to return. Default 20."
+            }
+        },
+        required: ["query"]
+    },
+    ui = `Read the recent transcript of another CCD session.
+
+Returns a compact plaintext rendering of the target session's user/assistant turns and tool calls, most recent last. Use this to understand what another session has been doing or what it concluded. This returns conversation content, so it always prompts the user for approval.`,
+    pi = {
+        type: "object",
+        properties: {
+            session_id: {
+                type: "string",
+                description: "The sessionId whose transcript to read (from list_sessions / search_session_transcripts). Must not be the current session."
+            },
+            limit: {
+                type: "number",
+                description: "Max transcript messages to include (most recent). Default 40."
+            },
+            before_uuid: {
+                type: "string",
+                description: "Return only messages before this message UUID. Use for paging backward through a long transcript."
+            }
+        },
+        required: ["session_id"]
+    },
+    hi = `Archive a CCD session. Archiving stops the session's process and (by default) cleans up its worktree; the session can still be reopened later from the Archived list. Pass the literal string "self" as session_id to archive this session — the conversation ends after this tool result.
+
+This tool ALWAYS prompts the user for confirmation. Only call it after the user has explicitly agreed to archive a specific session — never speculatively.
+
+If the user often wants sessions archived once their PR merges, suggest enabling the "Auto-archive on PR close" preference in Settings instead of calling this repeatedly.`,
+    mi = {
+        type: "object",
+        properties: {
+            session_id: {
+                type: "string",
+                description: 'The sessionId of the session to archive (from list_sessions / search_session_transcripts), or the literal string "self" to archive this session (ends the conversation).'
+            },
+            reason: {
+                type: "string",
+                description: "Short human-readable reason shown in the approval prompt (e.g. 'PR #123 merged')."
+            }
+        },
+        required: ["session_id"]
+    },
+    fi = `Rename another CCD session.
+
+This tool ALWAYS prompts the user for confirmation. Use it when the user asks to rename a session, or after a session's scope has clearly changed and the old title is misleading.`,
+    gi = {
+        type: "object",
+        properties: {
+            session_id: {
+                type: "string",
+                description: "The sessionId of the session to rename (from list_sessions / search_session_transcripts). Must not be the current session."
+            },
+            title: {
+                type: "string",
+                description: "New title for the session."
+            }
+        },
+        required: ["session_id", "title"]
+    },
+    yi = `Send a message to another CCD session. The message arrives in the target session as a user turn labelled "From {this session's title}" with a link back here, so the user can see where it came from.
+
+This tool ALWAYS prompts the user for confirmation. Use it to hand off context, ask the other session to pick something up, or relay a finding — not to orchestrate background work.`,
+    wi = {
+        type: "object",
+        properties: {
+            session_id: {
+                type: "string",
+                description: "The sessionId of the target session (from list_sessions / search_session_transcripts). Must not be the current session."
+            },
+            message: {
+                type: "string",
+                description: "The message body to deliver to the target session."
+            }
+        },
+        required: ["session_id", "message"]
+    };
+
+function Zt(e) {
+    return e.replace(/["<>\n]/g, " ").trim()
+}
+
+function _i(e) {
+    return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+}
+
+function vi() {
+    return {
+        serverName: X,
+        tools: [{
+            name: tt,
+            description: ii,
+            inputSchema: si
+        }, {
+            name: rt,
+            description: ai,
+            inputSchema: li
+        }, {
+            name: nt,
+            description: ci,
+            inputSchema: di
+        }, {
+            name: ot,
+            description: ui,
+            inputSchema: pi
+        }, {
+            name: it,
+            description: hi,
+            inputSchema: mi
+        }, {
+            name: st,
+            description: fi,
+            inputSchema: gi
+        }, {
+            name: at,
+            description: yi,
+            inputSchema: wi
+        }],
+        isEnabled: e => e.sessionType === "ccd",
+        handleToolCall: async (e, r, t) => {
+            var i, s, a;
+            const {
+                claudeCodeSessionManager: o
+            } = await Promise.resolve().then(() => require("./index.chunk-B3Z2xpgG.js"));
+            if (e === tt) {
+                const l = r.include_archived === !0,
+                    c = typeof r.limit == "number" && r.limit > 0 ? Math.floor(r.limit) : 20,
+                    u = (await o.getAllSessions()).filter(p => p.sessionId !== t.sessionId && (l || !p.isArchived)).sort((p, h) => (h.lastActivityAt ?? 0) - (p.lastActivityAt ?? 0)).slice(0, c).map(p => {
+                        var f, _;
+                        const h = ((f = p.prs) == null ? void 0 : f.find(A => !A.inherited)) ?? ((_ = p.prs) == null ? void 0 : _[0]);
+                        return {
+                            sessionId: p.sessionId,
+                            title: p.title,
+                            cwd: p.cwd,
+                            branch: p.branch,
+                            isArchived: p.isArchived ?? !1,
+                            isRunning: p.isRunning,
+                            prNumber: h == null ? void 0 : h.prNumber,
+                            prState: h == null ? void 0 : h.state,
+                            lastActivityAt: p.lastActivityAt ? new Date(p.lastActivityAt).toISOString() : void 0
+                        }
+                    });
+                return {
+                    content: [{
+                        type: "text",
+                        text: u.length === 0 ? "No other sessions found." : JSON.stringify(u, null, 2)
+                    }]
+                }
+            }
+            if (e === rt) {
+                const l = typeof r.session_id == "string" ? r.session_id.trim() : "";
+                if (!l) return {
+                    content: [{
+                        type: "text",
+                        text: "session_id is required."
+                    }],
+                    isError: !0
+                };
+                if (l === t.sessionId) return {
+                    content: [{
+                        type: "text",
+                        text: "Refusing to return the current session; use list_sessions for other sessions or your own session context for this one."
+                    }],
+                    isError: !0
+                };
+                const c = await o.getSession(l);
+                if (!c) return {
+                    content: [{
+                        type: "text",
+                        text: `Session ${l} not found.`
+                    }],
+                    isError: !0
+                };
+                const d = o.getSessionMgmtDetail(l),
+                    u = ((i = c.prs) == null ? void 0 : i.find(h => !h.inherited)) ?? ((s = c.prs) == null ? void 0 : s[0]),
+                    p = {
+                        sessionId: c.sessionId,
+                        title: c.title,
+                        cwd: c.cwd,
+                        branch: c.branch,
+                        isArchived: c.isArchived ?? !1,
+                        isRunning: c.isRunning,
+                        prNumber: u == null ? void 0 : u.prNumber,
+                        prState: u == null ? void 0 : u.state,
+                        lastActivityAt: c.lastActivityAt ? new Date(c.lastActivityAt).toISOString() : void 0,
+                        createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : void 0,
+                        model: c.model,
+                        originCwd: c.originCwd,
+                        worktreePath: c.worktreePath,
+                        worktreeName: c.worktreeName,
+                        sourceBranch: c.sourceBranch,
+                        isRemote: !!c.remoteTarget,
+                        scheduledTaskId: c.scheduledTaskId,
+                        agent: d == null ? void 0 : d.agent,
+                        effort: c.effort
+                    };
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(p, null, 2)
+                    }]
+                }
+            }
+            if (e === nt) {
+                const l = we(t);
+                if (l) return l;
+                const c = typeof r.query == "string" ? r.query.trim() : "";
+                if (c.length < 2) return {
+                    content: [{
+                        type: "text",
+                        text: "query must be at least 2 characters."
+                    }],
+                    isError: !0
+                };
+                const d = r.include_archived === !0,
+                    u = typeof r.limit == "number" && r.limit > 0 ? Math.floor(r.limit) : 20,
+                    p = await o.searchSessions(c, {
+                        includeArchived: d,
+                        limit: u + 1
+                    }),
+                    h = await Promise.all(p.filter(f => f.sessionId !== t.sessionId).slice(0, u).map(async f => {
+                        const _ = await o.getSession(f.sessionId);
+                        return {
+                            sessionId: f.sessionId,
+                            title: _ == null ? void 0 : _.title,
+                            cwd: _ == null ? void 0 : _.cwd,
+                            isArchived: (_ == null ? void 0 : _.isArchived) ?? !1,
+                            lastActivityAt: new Date(f.lastActivityAt).toISOString(),
+                            snippet: f.snippet
+                        }
+                    }));
+                return h.length === 0 ? {
+                    content: [{
+                        type: "text",
+                        text: "No matching sessions found."
+                    }]
+                } : {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(h, null, 2)
+                    }]
+                }
+            }
+            if (e === ot) {
+                const l = we(t);
+                if (l) return l;
+                const c = typeof r.session_id == "string" ? r.session_id.trim() : "";
+                if (!c) return {
+                    content: [{
+                        type: "text",
+                        text: "session_id is required."
+                    }],
+                    isError: !0
+                };
+                if (c === t.sessionId) return {
+                    content: [{
+                        type: "text",
+                        text: "Refusing to read the current session's own transcript."
+                    }],
+                    isError: !0
+                };
+                const d = await o.getSession(c);
+                if (!d) return {
+                    content: [{
+                        type: "text",
+                        text: `Session ${c} not found.`
+                    }],
+                    isError: !0
+                };
+                if (d.transcriptUnavailable) return {
+                    content: [{
+                        type: "text",
+                        text: `Session ${c}'s transcript is unavailable${d.isArchived?" (session is archived)":" (transcript file was cleaned up)"}.`
+                    }],
+                    isError: !0
+                };
+                const u = typeof r.limit == "number" && r.limit > 0 ? Math.max(1, Math.min(Math.floor(r.limit), 500)) : 40,
+                    p = typeof r.before_uuid == "string" ? r.before_uuid.trim() : void 0,
+                    {
+                        formatTranscript: h
+                    } = await Promise.resolve().then(() => require("./index.chunk-B7OgxkJ-.js")),
+                    f = await o.getTranscript(c);
+                if (f.length === 0) {
+                    const v = await o.getSession(c);
+                    if (v != null && v.transcriptUnavailable) return {
+                        content: [{
+                            type: "text",
+                            text: `Session ${c}'s transcript is unavailable${v.isArchived?" (session is archived)":" (transcript file was cleaned up)"}.`
+                        }],
+                        isError: !0
+                    }
+                }
+                const _ = n.sliceTranscriptTail(f, {
+                    limit: u,
+                    beforeEventId: p
+                });
+                return _.cursorNotFound ? {
+                    content: [{
+                        type: "text",
+                        text: `before_uuid "${p}" not found in session ${c}'s transcript (it may have been evicted). Omit before_uuid to fetch the newest messages.`
+                    }],
+                    isError: !0
+                } : {
+                    content: [{
+                        type: "text",
+                        text: `${`Session "${d.title??"Untitled"}" (${d.isRunning?"running":"idle"}${d.isArchived?", archived":""}) — showing ${_.events.length} of ${f.length} messages`+(_.hasMore?`
+Pass before_uuid="${_.firstEventId}" to page further back.`:"")}
+
+${h(_.events)}`
+                    }]
+                }
+            }
+            if (e === it) {
+                const l = we(t);
+                if (l) return l;
+                const c = typeof r.session_id == "string" ? r.session_id.trim() : "";
+                if (!c) return {
+                    content: [{
+                        type: "text",
+                        text: "session_id is required."
+                    }],
+                    isError: !0
+                };
+                const d = c === Xo || c === t.sessionId || `${n.LOCAL_SESSION_PREFIX}${c}` === t.sessionId,
+                    u = d ? t.sessionId : c,
+                    p = await o.getSession(u);
+                if (!p) return {
+                    content: [{
+                        type: "text",
+                        text: `Session ${c} not found.`
+                    }],
+                    isError: !0
+                };
+                if (p.isArchived) return {
+                    content: [{
+                        type: "text",
+                        text: `Session ${c} is already archived.`
+                    }],
+                    isError: !0
+                };
+                const h = p.title ? ` ("${p.title}")` : "";
+                return d ? (setImmediate(() => {
+                    o.archiveSession(u).catch(f => n.logger.error("ccd_session_mgmt self-archive failed", f))
+                }), {
+                    content: [{
+                        type: "text",
+                        text: `Archiving this session${h}. The conversation will end.`
+                    }]
+                }) : (await o.archiveSession(u), {
+                    content: [{
+                        type: "text",
+                        text: `Archived session ${c}${h}.`
+                    }]
+                })
+            }
+            if (e === st) {
+                const l = we(t);
+                if (l) return l;
+                const c = typeof r.session_id == "string" ? r.session_id.trim() : "",
+                    d = typeof r.title == "string" ? r.title.trim() : "";
+                return !c || !d ? {
+                    content: [{
+                        type: "text",
+                        text: "session_id and title are required."
+                    }],
+                    isError: !0
+                } : d.length > 200 ? {
+                    content: [{
+                        type: "text",
+                        text: "title must be 200 characters or fewer."
+                    }],
+                    isError: !0
+                } : c === t.sessionId ? {
+                    content: [{
+                        type: "text",
+                        text: "Refusing to rename the current session from within itself."
+                    }],
+                    isError: !0
+                } : await o.getSession(c) ? (await o.updateSession(c, {
+                    title: d,
+                    titleSource: "user"
+                }), {
+                    content: [{
+                        type: "text",
+                        text: `Renamed session ${c} to "${d}".`
+                    }]
+                }) : {
+                    content: [{
+                        type: "text",
+                        text: `Session ${c} not found.`
+                    }],
+                    isError: !0
+                }
+            }
+            if (e === at) {
+                const l = we(t);
+                if (l) return l;
+                const c = typeof r.session_id == "string" ? r.session_id.trim() : "",
+                    d = typeof r.message == "string" ? r.message.trim() : "";
+                if (!c || !d) return {
+                    content: [{
+                        type: "text",
+                        text: "session_id and message are required."
+                    }],
+                    isError: !0
+                };
+                if (c === t.sessionId) return {
+                    content: [{
+                        type: "text",
+                        text: "Refusing to send a message to the current session."
+                    }],
+                    isError: !0
+                };
+                const u = await o.getSession(c);
+                if (!u) return {
+                    content: [{
+                        type: "text",
+                        text: `Session ${c} not found.`
+                    }],
+                    isError: !0
+                };
+                if (u.isArchived) return {
+                    content: [{
+                        type: "text",
+                        text: `Session ${c} is archived; unarchive it first.`
+                    }],
+                    isError: !0
+                };
+                const p = (a = t.getSessionTitle) == null ? void 0 : a.call(t),
+                    h = Zt(p ?? ""),
+                    f = h ? ` name="${h}"` : "",
+                    _ = `<cross-session-message from="${Zt(t.sessionId)}"${f} encoded="1">
+${_i(d)}
+</cross-session-message>`,
+                    A = await o.sendMessage(c, _, void 0, {
+                        origin: {
+                            kind: "peer",
+                            from: t.sessionId,
+                            name: (p == null ? void 0 : p.trim()) || void 0
+                        }
+                    }),
+                    v = u.title ? ` ("${u.title}")` : "";
+                return A.delivered ? {
+                    content: [{
+                        type: "text",
+                        text: A.queued ? `Message queued for session ${c}${v}; it will be processed after the in-flight turn finishes if that session stays healthy.` : `Message sent to session ${c}${v}.`
+                    }]
+                } : {
+                    content: [{
+                        type: "text",
+                        text: `Message could not be delivered to session ${c}${v}: ${A.reason}`
+                    }],
+                    isError: !0
+                }
+            }
+            return {
+                content: [{
+                    type: "text",
+                    text: `Unknown tool: ${e}`
+                }],
+                isError: !0
+            }
+        }
+    }
+}
+class Si extends wn.EventEmitter {
+    constructor() {
+        super(...arguments), this.sessions = new Map, this.currentAccountId = null, this.currentOrgId = null, this.currentAccountTaggedId = null, this.lastInitAuthFailed = !1, this.sessionsLoaded = !1, this.initPromise = null, this.hasPendingInit = !1, this.pendingOrgId = void 0, this.initializingOrgId = void 0, this.sawLogoutSinceInit = !1
+    }
+    setupListeners() {
+        K.app.isReady() ? this.setupOrgChangeListener() : K.app.once("ready", () => {
+            this.setupOrgChangeListener()
+        }), this.setupAccountChangeListener()
+    }
+    setupOrgChangeListener() {
+        K.session.defaultSession.cookies.on("changed", (r, t, o, i) => {
+            if (t.name === "lastActiveOrg" && !i) {
+                const s = n.getOrgFromCookie(t.value),
+                    a = this.hasPendingInit ? this.pendingOrgId : this.initializingOrgId ?? this.currentOrgId;
+                s && s !== a && (n.logger.info(`[${this.managerName}] Org changed from ${this.currentOrgId} to ${s}, reinitializing sessions`), this.initializeWithAccount(s))
+            }
+        })
+    }
+    setupAccountChangeListener() {
+        n.onAccountDetailsChange(() => {
+            const r = n.getAccountDetails();
+            if (!r) return;
+            if (r.isLoggedOut) {
+                this.currentAccountId && !this.sawLogoutSinceInit && (n.logger.info(`[${this.managerName}] Account logged out, marking for re-init on next login`), this.sawLogoutSinceInit = !0);
+                return
+            }
+            const t = r.accountUuid !== void 0 && this.currentAccountId !== null && r.accountUuid !== this.currentAccountId;
+            if (this.currentAccountId)(this.sawLogoutSinceInit || t) && this.initializeWithAccount();
+            else {
+                if (this.initPromise) return;
+                this.initializeWithAccount()
+            }
+        })
+    }
+    async waitForInitialization() {
+        this.initPromise && await this.initPromise
+    }
+    async waitForSessionsLoaded(r = 5e3) {
+        this.sessionsLoaded || this.initPromise && (await this.initPromise, this.sessionsLoaded) || await new Promise(t => {
+            const o = s => {
+                    s.type === "initialized" && (clearTimeout(i), this.off("event", o), t())
+                },
+                i = setTimeout(() => {
+                    this.off("event", o), t()
+                }, r);
+            this.on("event", o)
+        })
+    }
+    async initializeWithAccount(r) {
+        if (this.initPromise) return this.hasPendingInit = !0, this.pendingOrgId = r, this.initPromise;
+        this.initializingOrgId = r, this.initPromise = this.doInitialize(r);
+        try {
+            await this.initPromise
+        } finally {
+            this.initPromise = null, this.initializingOrgId = void 0
+        }
+        if (this.hasPendingInit) {
+            const t = this.pendingOrgId;
+            this.hasPendingInit = !1, this.pendingOrgId = void 0, await this.initializeWithAccount(t)
+        }
+    }
+    async doInitialize(r) {
+        var s;
+        const [t, o] = await Promise.all([n.waitForAccountId(), r !== void 0 ? Promise.resolve(r) : n.getLastActiveOrg()]), i = t ?? this.currentAccountId;
+        if (!i || !o) {
+            this.lastInitAuthFailed = ((s = n.getAccountDetails()) == null ? void 0 : s.isLoggedOut) ?? !1, n.logger.warn(`[${this.managerName}] Cannot initialize sessions: accountId=${t??"null"}, orgId=${o??"null"}. Keeping existing sessions.`);
+            return
+        }
+        if (this.lastInitAuthFailed = !1, this.sawLogoutSinceInit = !1, n.logger.info(`[${this.managerName}] Initialization succeeded — accountId=${i}, orgId=${o}, existingSessions=${this.sessions.size}`), i !== this.currentAccountId || o !== this.currentOrgId) {
+            const a = i !== this.currentAccountId,
+                l = n.getAccountTaggedId();
+            await this.flushPendingSaves(), this.onAccountOrgChanged(), this.sessionsLoaded = !1, this.sessions.clear(), this.currentAccountId = i, this.currentAccountTaggedId = a ? l : l ?? this.currentAccountTaggedId, this.currentOrgId = o, this.onAccountResolved(i, o), await this.migrateLegacySessions();
+            try {
+                await this.loadSessions()
+            } catch (c) {
+                n.logger.error(`[${this.managerName}] loadSessions failed during account transition`, c), this.currentAccountId = null, this.currentAccountTaggedId = null, this.currentOrgId = null, this.emit("event", {
+                    type: "initialized",
+                    sessionId: ""
+                });
+                return
+            }
+            this.sessionsLoaded = !0
+        } else {
+            await this.migrateLegacySessions();
+            try {
+                await this.loadSessions(), this.sessionsLoaded = !0
+            } catch (a) {
+                n.logger.error(`[${this.managerName}] loadSessions failed during session reload`, a)
+            }
+        }
+        this.emit("event", {
+            type: "initialized",
+            sessionId: ""
+        }), await this.onInitialized(i, o)
+    }
+}
+const bi = ["prompt is too long", "prompt too long"];
+
+function er(e) {
+    const r = e.toLowerCase();
+    return bi.some(t => r.includes(t))
+}
+
+function Ti(e) {
+    if (e.type !== "result" || !e.is_error) return !1;
+    const r = e;
+    if (typeof r.result == "string" && er(r.result)) return !0;
+    if (Array.isArray(r.errors)) {
+        for (const t of r.errors)
+            if (typeof t == "string" && er(t)) return !0
+    }
+    return !1
+}
+
+function ki(e) {
+    if (e.type !== "result" || !e.is_error) return !1;
+    const r = e,
+        t = "no conversation found with session id";
+    if (typeof r.result == "string" && r.result.toLowerCase().includes(t)) return !0;
+    if (Array.isArray(r.errors)) {
+        for (const o of r.errors)
+            if (typeof o == "string" && o.toLowerCase().includes(t)) return !0
+    }
+    return !1
+}
+const Ei = "This conversation has reached its length limit. Start a new session to continue.";
+
+function Ci(e) {
+    Rr(e, Ei)
+}
+
+function Rr(e, r) {
+    if (e.type !== "result") return;
+    const t = e;
+    typeof t.result == "string" && (t.result = r), Array.isArray(t.errors) && (t.errors = [r])
+}
+
+function Ai(e) {
+    if (!(!e || e.length === 0)) try {
+        return Buffer.byteLength(JSON.stringify(e))
+    } catch {
+        return
+    }
+}
+
+function Pi(e) {
+    var t;
+    let r = 0;
+    for (const o of e) {
+        if (o.type !== "user") continue;
+        const i = (t = o.message) == null ? void 0 : t.content;
+        if (Array.isArray(i))
+            for (const s of i) typeof s == "object" && s !== null && "type" in s && s.type === "image" && r++
+    }
+    return r
+}
+const Ri = ["authentication_error", "invalid authentication credentials", "oauth token has expired", "oauth token revoked", "api error: 401"],
+    Ii = ["expiredtoken", "unrecognizedclient", "invalidsignature", "incompletesignature", "tokenrefreshrequired", "invalidclienttokenid", "credentialsprovidererror", "unable to locate credentials", "security token included in the request is expired", "security token included in the request is invalid"],
+    Mi = [...Ri, ...Ii];
+
+function $e(e) {
+    const r = e.toLowerCase();
+    return Mi.some(t => r.includes(t))
+}
+const xi = /401|unauthorized|authentication|revoked/i;
+
+function Oi(e) {
+    if (typeof e == "string") return $e(e) ? {
+        kind: "credential-rejected",
+        signal: "prose"
+    } : xi.test(e) ? {
+        kind: "auth-related-prose"
+    } : {
+        kind: "none"
+    };
+    if (e.type === "result" && e.is_error) {
+        if (e.subtype === "success" && e.api_error_status === 401) return {
+            kind: "credential-rejected",
+            signal: "http-status"
+        };
+        if ($i(e)) return {
+            kind: "credential-rejected",
+            signal: "prose"
+        }
+    }
+    return e.type === "assistant" && e.error === "authentication_failed" ? {
+        kind: "credential-rejected",
+        signal: "assistant-enum"
+    } : {
+        kind: "none"
+    }
+}
+
+function $i(e) {
+    if (e.type !== "result" || !e.is_error) return !1;
+    const r = e;
+    if (typeof r.result == "string" && $e(r.result) || typeof r.error == "string" && $e(r.error)) return !0;
+    if (Array.isArray(r.errors)) {
+        for (const t of r.errors)
+            if (typeof t == "string" && $e(t)) return !0
+    }
+    return !1
+}
+const Di = "Your session credentials expired. Send your message again to continue with a fresh connection.";
+
+function Ni(e) {
+    Rr(e, Di), e.type === "result" && e.subtype === "success" && (e.api_error_status = null)
+}
+class Li {
+    constructor() {
+        this.kind = "local", this.remoteTarget = void 0
+    }
+    trustKey(r) {
+        return r
+    }
+    async preflight() {
+        if (process.platform !== "win32") return;
+        const r = n.loadUserEnvVars().CLAUDE_CODE_GIT_BASH_PATH ?? process.env.CLAUDE_CODE_GIT_BASH_PATH,
+            {
+                gitWorktreeManager: t
+            } = await Promise.resolve().then(() => require("./index.chunk-B12bkqAs.js")).then(i => i.GitWorktreeManager),
+            o = await t.isGitBashAvailable(r);
+        if (!o.available) throw new Error(o.checkedPath ? `Git Bash is required but was not found at CLAUDE_CODE_GIT_BASH_PATH: "${o.checkedPath}". Check that the path points to bash.exe inside your Git for Windows install, then try again.` : "Git Bash is required but was not found. Install Git for Windows from https://git-scm.com/download/win (which includes Git Bash), then try again. If Git is installed in a non-standard location, set the CLAUDE_CODE_GIT_BASH_PATH environment variable to the full path of bash.exe.")
+    }
+    supportsLaunchTools() {
+        return !0
+    }
+    shouldKillOnIdlePause() {
+        return !0
+    }
+}
+class Ui {
+    constructor(r) {
+        this.sshConfig = r, this.kind = "ssh", this.remoteTarget = {
+            kind: "ssh",
+            sshHost: r.sshHost,
+            sshPort: r.sshPort,
+            sshIdentityFile: r.sshIdentityFile,
+            remoteCwd: r.remoteCwd
+        }
+    }
+    trustKey(r) {
+        return `ssh:${this.sshConfig.sshHost}:${r}`
+    }
+    async preflight() {}
+    supportsLaunchTools() {
+        return !1
+    }
+    shouldKillOnIdlePause() {
+        return !n.isFeatureEnabled("3646818354")
+    }
+}
+class Fi {
+    constructor(r) {
+        this.wslConfig = r, this.kind = "wsl", this.remoteTarget = {
+            kind: "wsl",
+            distro: r.distro
+        }
+    }
+    trustKey(r) {
+        return `wsl:${this.wslConfig.distro.toLowerCase()}:${r}`
+    }
+    async preflight() {
+        const r = await n.listWslDistros(),
+            t = this.wslConfig.distro.toLowerCase(),
+            o = r.find(i => i.name.toLowerCase() === t);
+        if (!o) throw new Error(`WSL distro "${this.wslConfig.distro}" is not installed. Run \`wsl --list\` to see installed distros.`);
+        if (o.version !== 2) throw new Error(`WSL distro "${this.wslConfig.distro}" is WSL 1. Convert it with \`wsl --set-version ${this.wslConfig.distro} 2\` — WSL 2 is required.`)
+    }
+    supportsLaunchTools() {
+        return !1
+    }
+    shouldKillOnIdlePause() {
+        return !n.isFeatureEnabled("3646818354")
+    }
+}
+
+function Ir(e, r) {
+    return e ? new Ui(e) : r ? new Fi(r) : new Li
+}
+const qi = new Set(["user", "assistant", "system", "result", "stream_event", "tool_use_summary", "tool_progress", "auth_status", "prompt_suggestion", "rate_limit_event"]);
+
+function ji(e, r) {
+    const t = new Map;
+    for (const a of e) a.uuid && t.set(a.uuid, a);
+    const o = t.get(r);
+    if (!o) return;
+    let i = o.parentUuid ? t.get(o.parentUuid) : void 0;
+    const s = new Set;
+    for (; i != null && i.uuid && !s.has(i.uuid);) {
+        if (s.add(i.uuid), i.type === "assistant" && !i.parent_tool_use_id) return i.uuid;
+        i = i.parentUuid ? t.get(i.parentUuid) : void 0
+    }
+}
+const Bi = 5e3;
+
+function Hi(e, r, t) {
+    const o = r.timestamp ? new Date(r.timestamp).getTime() : NaN;
+    if (Number.isNaN(o)) return;
+    const i = r.isSidechain ?? !1;
+    let s, a = 1 / 0;
+    for (const l of e) {
+        if (!l.uuid || t.has(l.uuid) || l.parentUuid === void 0 || (l.isSidechain ?? !1) !== i) continue;
+        const c = l.timestamp ? new Date(l.timestamp).getTime() : NaN;
+        if (Number.isNaN(c)) continue;
+        const d = o - c;
+        d >= 0 && d <= Bi && d < a && (a = d, s = l)
+    }
+    return s
+}
+
+function Wi(e) {
+    const r = new Map;
+    let t;
+    for (const s of e) s.uuid && (r.set(s.uuid, s), s.parentUuid !== void 0 && !s.isSidechain && (s.type === "user" || s.type === "assistant") && (t = s));
+    const o = new Set;
+    let i = t;
+    for (; i != null && i.uuid && !o.has(i.uuid);) {
+        o.add(i.uuid);
+        const s = i.parentUuid;
+        if (!s) break;
+        let a = r.get(s);
+        (!a || a.uuid && o.has(a.uuid)) && (a = Hi(r.values(), i, o)), i = a
+    }
+    return o
+}
+
+function Gi(e, r) {
+    return e.trimStart().startsWith("/") ? `${e} ${r}` : `${r}
+
+${e}`
+}
+
+function zi(e, r) {
+    const t = r == null ? void 0 : r.filter(i => i.base64 ? !0 : (n.logger.warn("[buildMessageContent] dropping empty-base64 image — an upstream guard is missing", {
+        mimeType: i.mimeType
+    }), !1));
+    if (!t || t.length === 0) return e;
+    const o = [];
+    for (const i of t) o.push({
+        type: "image",
+        source: {
+            type: "base64",
+            media_type: i.mimeType,
+            data: i.base64
+        }
+    });
+    return e.trim() && o.push({
+        type: "text",
+        text: e
+    }), o
+}
+
+function Ki(e) {
+    var a;
+    if (e.length < 2) return e[0] ?? null;
+    const r = [],
+        t = [];
+    for (const l of e) {
+        if (l.origin) return null;
+        const c = (a = l.message) == null ? void 0 : a.content;
+        if (c === void 0) return null;
+        if (typeof c == "string") r.push(c);
+        else
+            for (const d of c)
+                if (d.type === "text") r.push(d.text);
+                else if (d.type === "image") t.push(d);
+        else return null
+    }
+    if (r.some(l => /^[/!]/.test(l.trimStart()))) return null;
+    const o = r.filter(l => l.trim()).join(`
+
+`),
+        i = t.length === 0 ? o : o.trim() ? [...t, {
+            type: "text",
+            text: o
+        }] : t;
+    return {
+        ...e[0],
+        message: {
+            role: "user",
+            content: i
+        }
+    }
+}
+const Mr = Symbol.for("mcp.completable");
+
+function tr(e) {
+    return !!e && typeof e == "object" && Mr in e
+}
+
+function Yi(e) {
+    const r = e[Mr];
+    return r == null ? void 0 : r.complete
+}
+var rr;
+(function(e) {
+    e.Completable = "McpCompletable"
+})(rr || (rr = {}));
+const Vi = /^[A-Za-z0-9._-]{1,128}$/;
+
+function Ji(e) {
+    const r = [];
+    if (e.length === 0) return {
+        isValid: !1,
+        warnings: ["Tool name cannot be empty"]
+    };
+    if (e.length > 128) return {
+        isValid: !1,
+        warnings: [`Tool name exceeds maximum length of 128 characters (current: ${e.length})`]
+    };
+    if (e.includes(" ") && r.push("Tool name contains spaces, which may cause parsing issues"), e.includes(",") && r.push("Tool name contains commas, which may cause parsing issues"), (e.startsWith("-") || e.endsWith("-")) && r.push("Tool name starts or ends with a dash, which may cause parsing issues in some contexts"), (e.startsWith(".") || e.endsWith(".")) && r.push("Tool name starts or ends with a dot, which may cause parsing issues in some contexts"), !Vi.test(e)) {
+        const t = e.split("").filter(o => !/[A-Za-z0-9._-]/.test(o)).filter((o, i, s) => s.indexOf(o) === i);
+        return r.push(`Tool name contains invalid characters: ${t.map(o=>`"${o}"`).join(", ")}`, "Allowed characters are: A-Z, a-z, 0-9, underscore (_), dash (-), and dot (.)"), {
+            isValid: !1,
+            warnings: r
+        }
+    }
+    return {
+        isValid: !0,
+        warnings: r
+    }
+}
+
+function Xi(e, r) {
+    if (r.length > 0) {
+        console.warn(`Tool name validation warning for "${e}":`);
+        for (const t of r) console.warn(`  - ${t}`);
+        console.warn("Tool registration will proceed, but this may cause compatibility issues."), console.warn("Consider updating the tool name to conform to the MCP tool naming standard."), console.warn("See SEP: Specify Format for Tool Names (https://github.com/modelcontextprotocol/modelcontextprotocol/issues/986) for more details.")
+    }
+}
+
+function nr(e) {
+    const r = Ji(e);
+    return Xi(e, r.warnings), r.isValid
+}
+class Qi {
+    constructor(r) {
+        this._mcpServer = r
+    }
+    registerToolTask(r, t, o) {
+        const i = {
+            taskSupport: "required",
+            ...t.execution
+        };
+        if (i.taskSupport === "forbidden") throw new Error(`Cannot register task-based tool '${r}' with taskSupport 'forbidden'. Use registerTool() instead.`);
+        return this._mcpServer._createRegisteredTool(r, t.title, t.description, t.inputSchema, t.outputSchema, t.annotations, i, t._meta, o)
+    }
+}
+class xr {
+    constructor(r, t) {
+        this._registeredResources = {}, this._registeredResourceTemplates = {}, this._registeredTools = {}, this._registeredPrompts = {}, this._toolHandlersInitialized = !1, this._completionHandlerInitialized = !1, this._resourceHandlersInitialized = !1, this._promptHandlersInitialized = !1, this.server = new n.Server(r, t)
+    }
+    get experimental() {
+        return this._experimental || (this._experimental = {
+            tasks: new Qi(this)
+        }), this._experimental
+    }
+    async connect(r) {
+        return await this.server.connect(r)
+    }
+    async close() {
+        await this.server.close()
+    }
+    setToolRequestHandlers() {
+        this._toolHandlersInitialized || (this.server.assertCanSetRequestHandler(ee(n.ListToolsRequestSchema)), this.server.assertCanSetRequestHandler(ee(n.CallToolRequestSchema)), this.server.registerCapabilities({
+            tools: {
+                listChanged: !0
+            }
+        }), this.server.setRequestHandler(n.ListToolsRequestSchema, () => ({
+            tools: Object.entries(this._registeredTools).filter(([, r]) => r.enabled).map(([r, t]) => {
+                const o = {
+                    name: r,
+                    title: t.title,
+                    description: t.description,
+                    inputSchema: (() => {
+                        const i = n.normalizeObjectSchema(t.inputSchema);
+                        return i ? n.toJsonSchemaCompat(i, {
+                            strictUnions: !0,
+                            pipeStrategy: "input"
+                        }) : Zi
+                    })(),
+                    annotations: t.annotations,
+                    execution: t.execution,
+                    _meta: t._meta
+                };
+                if (t.outputSchema) {
+                    const i = n.normalizeObjectSchema(t.outputSchema);
+                    i && (o.outputSchema = n.toJsonSchemaCompat(i, {
+                        strictUnions: !0,
+                        pipeStrategy: "output"
+                    }))
+                }
+                return o
+            })
+        })), this.server.setRequestHandler(n.CallToolRequestSchema, async (r, t) => {
+            var o;
+            try {
+                const i = this._registeredTools[r.params.name];
+                if (!i) throw new n.McpError(n.ErrorCode.InvalidParams, `Tool ${r.params.name} not found`);
+                if (!i.enabled) throw new n.McpError(n.ErrorCode.InvalidParams, `Tool ${r.params.name} disabled`);
+                const s = !!r.params.task,
+                    a = (o = i.execution) == null ? void 0 : o.taskSupport,
+                    l = "createTask" in i.handler;
+                if ((a === "required" || a === "optional") && !l) throw new n.McpError(n.ErrorCode.InternalError, `Tool ${r.params.name} has taskSupport '${a}' but was not registered with registerToolTask`);
+                if (a === "required" && !s) throw new n.McpError(n.ErrorCode.MethodNotFound, `Tool ${r.params.name} requires task augmentation (taskSupport: 'required')`);
+                if (a === "optional" && !s && l) return await this.handleAutomaticTaskPolling(i, r, t);
+                const c = await this.validateToolInput(i, r.params.arguments, r.params.name),
+                    d = await this.executeToolHandler(i, c, t);
+                return s || await this.validateToolOutput(i, d, r.params.name), d
+            } catch (i) {
+                if (i instanceof n.McpError && i.code === n.ErrorCode.UrlElicitationRequired) throw i;
+                return this.createToolError(i instanceof Error ? i.message : String(i))
+            }
+        }), this._toolHandlersInitialized = !0)
+    }
+    createToolError(r) {
+        return {
+            content: [{
+                type: "text",
+                text: r
+            }],
+            isError: !0
+        }
+    }
+    async validateToolInput(r, t, o) {
+        if (!r.inputSchema) return;
+        const s = n.normalizeObjectSchema(r.inputSchema) ?? r.inputSchema,
+            a = await n.safeParseAsync(s, t);
+        if (!a.success) {
+            const l = "error" in a ? a.error : "Unknown error",
+                c = n.getParseErrorMessage(l);
+            throw new n.McpError(n.ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${o}: ${c}`)
+        }
+        return a.data
+    }
+    async validateToolOutput(r, t, o) {
+        if (!r.outputSchema || !("content" in t) || t.isError) return;
+        if (!t.structuredContent) throw new n.McpError(n.ErrorCode.InvalidParams, `Output validation error: Tool ${o} has an output schema but no structured content was provided`);
+        const i = n.normalizeObjectSchema(r.outputSchema),
+            s = await n.safeParseAsync(i, t.structuredContent);
+        if (!s.success) {
+            const a = "error" in s ? s.error : "Unknown error",
+                l = n.getParseErrorMessage(a);
+            throw new n.McpError(n.ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${o}: ${l}`)
+        }
+    }
+    async executeToolHandler(r, t, o) {
+        const i = r.handler;
+        if ("createTask" in i) {
+            if (!o.taskStore) throw new Error("No task store provided.");
+            const a = {
+                ...o,
+                taskStore: o.taskStore
+            };
+            if (r.inputSchema) {
+                const l = i;
+                return await Promise.resolve(l.createTask(t, a))
+            } else {
+                const l = i;
+                return await Promise.resolve(l.createTask(a))
+            }
+        }
+        if (r.inputSchema) {
+            const a = i;
+            return await Promise.resolve(a(t, o))
+        } else {
+            const a = i;
+            return await Promise.resolve(a(o))
+        }
+    }
+    async handleAutomaticTaskPolling(r, t, o) {
+        if (!o.taskStore) throw new Error("No task store provided for task-capable tool.");
+        const i = await this.validateToolInput(r, t.params.arguments, t.params.name),
+            s = r.handler,
+            a = {
+                ...o,
+                taskStore: o.taskStore
+            },
+            l = i ? await Promise.resolve(s.createTask(i, a)) : await Promise.resolve(s.createTask(a)),
+            c = l.task.taskId;
+        let d = l.task;
+        const u = d.pollInterval ?? 5e3;
+        for (; d.status !== "completed" && d.status !== "failed" && d.status !== "cancelled";) {
+            await new Promise(h => setTimeout(h, u));
+            const p = await o.taskStore.getTask(c);
+            if (!p) throw new n.McpError(n.ErrorCode.InternalError, `Task ${c} not found during polling`);
+            d = p
+        }
+        return await o.taskStore.getTaskResult(c)
+    }
+    setCompletionRequestHandler() {
+        this._completionHandlerInitialized || (this.server.assertCanSetRequestHandler(ee(n.CompleteRequestSchema)), this.server.registerCapabilities({
+            completions: {}
+        }), this.server.setRequestHandler(n.CompleteRequestSchema, async r => {
+            switch (r.params.ref.type) {
+                case "ref/prompt":
+                    return n.assertCompleteRequestPrompt(r), this.handlePromptCompletion(r, r.params.ref);
+                case "ref/resource":
+                    return n.assertCompleteRequestResourceTemplate(r), this.handleResourceCompletion(r, r.params.ref);
+                default:
+                    throw new n.McpError(n.ErrorCode.InvalidParams, `Invalid completion reference: ${r.params.ref}`)
+            }
+        }), this._completionHandlerInitialized = !0)
+    }
+    async handlePromptCompletion(r, t) {
+        const o = this._registeredPrompts[t.name];
+        if (!o) throw new n.McpError(n.ErrorCode.InvalidParams, `Prompt ${t.name} not found`);
+        if (!o.enabled) throw new n.McpError(n.ErrorCode.InvalidParams, `Prompt ${t.name} disabled`);
+        if (!o.argsSchema) return _e;
+        const i = n.getObjectShape(o.argsSchema),
+            s = i == null ? void 0 : i[r.params.argument.name];
+        if (!tr(s)) return _e;
+        const a = Yi(s);
+        if (!a) return _e;
+        const l = await a(r.params.argument.value, r.params.context);
+        return ir(l)
+    }
+    async handleResourceCompletion(r, t) {
+        const o = Object.values(this._registeredResourceTemplates).find(a => a.resourceTemplate.uriTemplate.toString() === t.uri);
+        if (!o) {
+            if (this._registeredResources[t.uri]) return _e;
+            throw new n.McpError(n.ErrorCode.InvalidParams, `Resource template ${r.params.ref.uri} not found`)
+        }
+        const i = o.resourceTemplate.completeCallback(r.params.argument.name);
+        if (!i) return _e;
+        const s = await i(r.params.argument.value, r.params.context);
+        return ir(s)
+    }
+    setResourceRequestHandlers() {
+        this._resourceHandlersInitialized || (this.server.assertCanSetRequestHandler(ee(n.ListResourcesRequestSchema)), this.server.assertCanSetRequestHandler(ee(n.ListResourceTemplatesRequestSchema)), this.server.assertCanSetRequestHandler(ee(n.ReadResourceRequestSchema)), this.server.registerCapabilities({
+            resources: {
+                listChanged: !0
+            }
+        }), this.server.setRequestHandler(n.ListResourcesRequestSchema, async (r, t) => {
+            const o = Object.entries(this._registeredResources).filter(([s, a]) => a.enabled).map(([s, a]) => ({
+                    uri: s,
+                    name: a.name,
+                    ...a.metadata
+                })),
+                i = [];
+            for (const s of Object.values(this._registeredResourceTemplates)) {
+                if (!s.resourceTemplate.listCallback) continue;
+                const a = await s.resourceTemplate.listCallback(t);
+                for (const l of a.resources) i.push({
+                    ...s.metadata,
+                    ...l
+                })
+            }
+            return {
+                resources: [...o, ...i]
+            }
+        }), this.server.setRequestHandler(n.ListResourceTemplatesRequestSchema, async () => ({
+            resourceTemplates: Object.entries(this._registeredResourceTemplates).map(([t, o]) => ({
+                name: t,
+                uriTemplate: o.resourceTemplate.uriTemplate.toString(),
+                ...o.metadata
+            }))
+        })), this.server.setRequestHandler(n.ReadResourceRequestSchema, async (r, t) => {
+            const o = new URL(r.params.uri),
+                i = this._registeredResources[o.toString()];
+            if (i) {
+                if (!i.enabled) throw new n.McpError(n.ErrorCode.InvalidParams, `Resource ${o} disabled`);
+                return i.readCallback(o, t)
+            }
+            for (const s of Object.values(this._registeredResourceTemplates)) {
+                const a = s.resourceTemplate.uriTemplate.match(o.toString());
+                if (a) return s.readCallback(o, a, t)
+            }
+            throw new n.McpError(n.ErrorCode.InvalidParams, `Resource ${o} not found`)
+        }), this._resourceHandlersInitialized = !0)
+    }
+    setPromptRequestHandlers() {
+        this._promptHandlersInitialized || (this.server.assertCanSetRequestHandler(ee(n.ListPromptsRequestSchema)), this.server.assertCanSetRequestHandler(ee(n.GetPromptRequestSchema)), this.server.registerCapabilities({
+            prompts: {
+                listChanged: !0
+            }
+        }), this.server.setRequestHandler(n.ListPromptsRequestSchema, () => ({
+            prompts: Object.entries(this._registeredPrompts).filter(([, r]) => r.enabled).map(([r, t]) => ({
+                name: r,
+                title: t.title,
+                description: t.description,
+                arguments: t.argsSchema ? es(t.argsSchema) : void 0
+            }))
+        })), this.server.setRequestHandler(n.GetPromptRequestSchema, async (r, t) => {
+            const o = this._registeredPrompts[r.params.name];
+            if (!o) throw new n.McpError(n.ErrorCode.InvalidParams, `Prompt ${r.params.name} not found`);
+            if (!o.enabled) throw new n.McpError(n.ErrorCode.InvalidParams, `Prompt ${r.params.name} disabled`);
+            if (o.argsSchema) {
+                const i = n.normalizeObjectSchema(o.argsSchema),
+                    s = await n.safeParseAsync(i, r.params.arguments);
+                if (!s.success) {
+                    const c = "error" in s ? s.error : "Unknown error",
+                        d = n.getParseErrorMessage(c);
+                    throw new n.McpError(n.ErrorCode.InvalidParams, `Invalid arguments for prompt ${r.params.name}: ${d}`)
+                }
+                const a = s.data,
+                    l = o.callback;
+                return await Promise.resolve(l(a, t))
+            } else {
+                const i = o.callback;
+                return await Promise.resolve(i(t))
+            }
+        }), this._promptHandlersInitialized = !0)
+    }
+    resource(r, t, ...o) {
+        let i;
+        typeof o[0] == "object" && (i = o.shift());
+        const s = o[0];
+        if (typeof t == "string") {
+            if (this._registeredResources[t]) throw new Error(`Resource ${t} is already registered`);
+            const a = this._createRegisteredResource(r, void 0, t, i, s);
+            return this.setResourceRequestHandlers(), this.sendResourceListChanged(), a
+        } else {
+            if (this._registeredResourceTemplates[r]) throw new Error(`Resource template ${r} is already registered`);
+            const a = this._createRegisteredResourceTemplate(r, void 0, t, i, s);
+            return this.setResourceRequestHandlers(), this.sendResourceListChanged(), a
+        }
+    }
+    registerResource(r, t, o, i) {
+        if (typeof t == "string") {
+            if (this._registeredResources[t]) throw new Error(`Resource ${t} is already registered`);
+            const s = this._createRegisteredResource(r, o.title, t, o, i);
+            return this.setResourceRequestHandlers(), this.sendResourceListChanged(), s
+        } else {
+            if (this._registeredResourceTemplates[r]) throw new Error(`Resource template ${r} is already registered`);
+            const s = this._createRegisteredResourceTemplate(r, o.title, t, o, i);
+            return this.setResourceRequestHandlers(), this.sendResourceListChanged(), s
+        }
+    }
+    _createRegisteredResource(r, t, o, i, s) {
+        const a = {
+            name: r,
+            title: t,
+            metadata: i,
+            readCallback: s,
+            enabled: !0,
+            disable: () => a.update({
+                enabled: !1
+            }),
+            enable: () => a.update({
+                enabled: !0
+            }),
+            remove: () => a.update({
+                uri: null
+            }),
+            update: l => {
+                typeof l.uri < "u" && l.uri !== o && (delete this._registeredResources[o], l.uri && (this._registeredResources[l.uri] = a)), typeof l.name < "u" && (a.name = l.name), typeof l.title < "u" && (a.title = l.title), typeof l.metadata < "u" && (a.metadata = l.metadata), typeof l.callback < "u" && (a.readCallback = l.callback), typeof l.enabled < "u" && (a.enabled = l.enabled), this.sendResourceListChanged()
+            }
+        };
+        return this._registeredResources[o] = a, a
+    }
+    _createRegisteredResourceTemplate(r, t, o, i, s) {
+        const a = {
+            resourceTemplate: o,
+            title: t,
+            metadata: i,
+            readCallback: s,
+            enabled: !0,
+            disable: () => a.update({
+                enabled: !1
+            }),
+            enable: () => a.update({
+                enabled: !0
+            }),
+            remove: () => a.update({
+                name: null
+            }),
+            update: d => {
+                typeof d.name < "u" && d.name !== r && (delete this._registeredResourceTemplates[r], d.name && (this._registeredResourceTemplates[d.name] = a)), typeof d.title < "u" && (a.title = d.title), typeof d.template < "u" && (a.resourceTemplate = d.template), typeof d.metadata < "u" && (a.metadata = d.metadata), typeof d.callback < "u" && (a.readCallback = d.callback), typeof d.enabled < "u" && (a.enabled = d.enabled), this.sendResourceListChanged()
+            }
+        };
+        this._registeredResourceTemplates[r] = a;
+        const l = o.uriTemplate.variableNames;
+        return Array.isArray(l) && l.some(d => !!o.completeCallback(d)) && this.setCompletionRequestHandler(), a
+    }
+    _createRegisteredPrompt(r, t, o, i, s) {
+        const a = {
+            title: t,
+            description: o,
+            argsSchema: i === void 0 ? void 0 : n.objectFromShape(i),
+            callback: s,
+            enabled: !0,
+            disable: () => a.update({
+                enabled: !1
+            }),
+            enable: () => a.update({
+                enabled: !0
+            }),
+            remove: () => a.update({
+                name: null
+            }),
+            update: l => {
+                typeof l.name < "u" && l.name !== r && (delete this._registeredPrompts[r], l.name && (this._registeredPrompts[l.name] = a)), typeof l.title < "u" && (a.title = l.title), typeof l.description < "u" && (a.description = l.description), typeof l.argsSchema < "u" && (a.argsSchema = n.objectFromShape(l.argsSchema)), typeof l.callback < "u" && (a.callback = l.callback), typeof l.enabled < "u" && (a.enabled = l.enabled), this.sendPromptListChanged()
+            }
+        };
+        return this._registeredPrompts[r] = a, i && Object.values(i).some(c => {
+            var u;
+            const d = c instanceof n.ZodOptional ? (u = c._def) == null ? void 0 : u.innerType : c;
+            return tr(d)
+        }) && this.setCompletionRequestHandler(), a
+    }
+    _createRegisteredTool(r, t, o, i, s, a, l, c, d) {
+        nr(r);
+        const u = {
+            title: t,
+            description: o,
+            inputSchema: or(i),
+            outputSchema: or(s),
+            annotations: a,
+            execution: l,
+            _meta: c,
+            handler: d,
+            enabled: !0,
+            disable: () => u.update({
+                enabled: !1
+            }),
+            enable: () => u.update({
+                enabled: !0
+            }),
+            remove: () => u.update({
+                name: null
+            }),
+            update: p => {
+                typeof p.name < "u" && p.name !== r && (typeof p.name == "string" && nr(p.name), delete this._registeredTools[r], p.name && (this._registeredTools[p.name] = u)), typeof p.title < "u" && (u.title = p.title), typeof p.description < "u" && (u.description = p.description), typeof p.paramsSchema < "u" && (u.inputSchema = n.objectFromShape(p.paramsSchema)), typeof p.outputSchema < "u" && (u.outputSchema = n.objectFromShape(p.outputSchema)), typeof p.callback < "u" && (u.handler = p.callback), typeof p.annotations < "u" && (u.annotations = p.annotations), typeof p._meta < "u" && (u._meta = p._meta), typeof p.enabled < "u" && (u.enabled = p.enabled), this.sendToolListChanged()
+            }
+        };
+        return this._registeredTools[r] = u, this.setToolRequestHandlers(), this.sendToolListChanged(), u
+    }
+    tool(r, ...t) {
+        if (this._registeredTools[r]) throw new Error(`Tool ${r} is already registered`);
+        let o, i, s, a;
+        if (typeof t[0] == "string" && (o = t.shift()), t.length > 1) {
+            const c = t[0];
+            if (lt(c)) i = t.shift(), t.length > 1 && typeof t[0] == "object" && t[0] !== null && !lt(t[0]) && (a = t.shift());
+            else if (typeof c == "object" && c !== null) {
+                if (Object.values(c).some(d => typeof d == "object" && d !== null)) throw new Error(`Tool ${r} expected a Zod schema or ToolAnnotations, but received an unrecognized object`);
+                a = t.shift()
+            }
+        }
+        const l = t[0];
+        return this._createRegisteredTool(r, void 0, o, i, s, a, {
+            taskSupport: "forbidden"
+        }, void 0, l)
+    }
+    registerTool(r, t, o) {
+        if (this._registeredTools[r]) throw new Error(`Tool ${r} is already registered`);
+        const {
+            title: i,
+            description: s,
+            inputSchema: a,
+            outputSchema: l,
+            annotations: c,
+            _meta: d
+        } = t;
+        return this._createRegisteredTool(r, i, s, a, l, c, {
+            taskSupport: "forbidden"
+        }, d, o)
+    }
+    prompt(r, ...t) {
+        if (this._registeredPrompts[r]) throw new Error(`Prompt ${r} is already registered`);
+        let o;
+        typeof t[0] == "string" && (o = t.shift());
+        let i;
+        t.length > 1 && (i = t.shift());
+        const s = t[0],
+            a = this._createRegisteredPrompt(r, void 0, o, i, s);
+        return this.setPromptRequestHandlers(), this.sendPromptListChanged(), a
+    }
+    registerPrompt(r, t, o) {
+        if (this._registeredPrompts[r]) throw new Error(`Prompt ${r} is already registered`);
+        const {
+            title: i,
+            description: s,
+            argsSchema: a
+        } = t, l = this._createRegisteredPrompt(r, i, s, a, o);
+        return this.setPromptRequestHandlers(), this.sendPromptListChanged(), l
+    }
+    isConnected() {
+        return this.server.transport !== void 0
+    }
+    async sendLoggingMessage(r, t) {
+        return this.server.sendLoggingMessage(r, t)
+    }
+    sendResourceListChanged() {
+        this.isConnected() && this.server.sendResourceListChanged()
+    }
+    sendToolListChanged() {
+        this.isConnected() && this.server.sendToolListChanged()
+    }
+    sendPromptListChanged() {
+        this.isConnected() && this.server.sendPromptListChanged()
+    }
+}
+const Zi = {
+    type: "object",
+    properties: {}
+};
+
+function Or(e) {
+    return e !== null && typeof e == "object" && "parse" in e && typeof e.parse == "function" && "safeParse" in e && typeof e.safeParse == "function"
+}
+
+function $r(e) {
+    return "_def" in e || "_zod" in e || Or(e)
+}
+
+function lt(e) {
+    return typeof e != "object" || e === null || $r(e) ? !1 : Object.keys(e).length === 0 ? !0 : Object.values(e).some(Or)
+}
+
+function or(e) {
+    if (e) {
+        if (lt(e)) return n.objectFromShape(e);
+        if (!$r(e)) throw new Error("inputSchema must be a Zod schema or raw shape, received an unrecognized object");
+        return e
+    }
+}
+
+function es(e) {
+    const r = n.getObjectShape(e);
+    return r ? Object.entries(r).map(([t, o]) => {
+        const i = n.getSchemaDescription(o),
+            s = n.isSchemaOptional(o);
+        return {
+            name: t,
+            description: i,
+            required: !s
+        }
+    }) : []
+}
+
+function ee(e) {
+    const r = n.getObjectShape(e),
+        t = r == null ? void 0 : r.method;
+    if (!t) throw new Error("Schema is missing a method literal");
+    const o = n.getLiteralValue(t);
+    if (typeof o == "string") return o;
+    throw new Error("Schema method literal must be a string")
+}
+
+function ir(e) {
+    return {
+        completion: {
+            values: e.slice(0, 100),
+            total: e.length,
+            hasMore: e.length > 100
+        }
+    }
+}
+const _e = {
+        completion: {
+            values: [],
+            hasMore: !1
+        }
+    },
+    ct = 3e5,
+    ts = {
+        anthropic_error_code: "mcp_auth_required"
+    },
+    rs = 3;
+
+function Re(e, r) {
+    return e.find(t => t.config.name === r) ?? e.find(t => n.normalizeMcpServerNameForCC(t.config.name) === r)
+}
+
+function le(e, r) {
+    var l;
+    const t = e.directMcpServers();
+    if (t == null) return {
+        phase: "unknown"
+    };
+    const o = Re(t, r);
+    if (o) return {
+        phase: "live",
+        conn: o,
+        rawName: o.config.name,
+        isBuiltin: n.isBuiltinMcpEntry(o.config)
+    };
+    const i = Re(e.parkedServersWithCachedTools(), r);
+    if (i) return {
+        phase: "parked-with-tools",
+        conn: i,
+        rawName: i.config.name
+    };
+    const s = Re(e.allParkedDirectMcp(), r);
+    if (s) return {
+        phase: "parked-no-tools",
+        config: s.config,
+        rawName: s.config.name
+    };
+    const a = Re(((l = e.builtinMcpRegistry()) == null ? void 0 : l.all()) ?? [], r);
+    return a ? {
+        phase: "builtin-parked",
+        config: a.config,
+        rawName: a.config.name
+    } : {
+        phase: "unknown"
+    }
+}
+async function Ie(e, r) {
+    const t = le(e, r);
+    switch (t.phase) {
+        case "live":
+            return t.conn;
+        case "parked-with-tools":
+        case "parked-no-tools":
+            return n.logger.info("[custom3p-mcp] lazy reconnect on imperative tool-call miss", {
+                server: t.rawName
+            }), n.reconnectParkedMcpOnDemand(e, t.rawName);
+        case "builtin-parked":
+            return n.logger.info("[custom3p-mcp] lazy respawn on imperative tool-call miss", {
+                server: t.rawName
+            }), Y.respawnBuiltinMcpOnDemand(e, t.rawName);
+        case "unknown":
+            return null
+    }
+}
+
+function dt(e) {
+    const r = e instanceof Y.BuiltinMcpUserDisconnectedError || e instanceof n.ParkedMcpUserDisconnectedError;
+    return {
+        content: [{
+            type: "text",
+            text: e instanceof Error ? e.message : String(e)
+        }],
+        isError: !0,
+        ...r && {
+            _meta: ts
+        }
+    }
+}
+const Me = new Set,
+    ns = new Set(["outlook", "sharepoint", "onedrive", "teams"]);
+
+function ut(e, r, t, o, i) {
+    var u;
+    if (!n.isBuiltinMcpEntry(e) || e.server !== "microsoft365") return;
+    const s = typeof i == "string" ? void 0 : i._meta,
+        a = typeof(s == null ? void 0 : s.graph_http_status) == "number" ? s.graph_http_status : void 0,
+        l = t.find(p => p.name === r),
+        c = l ? r.split("_", 1)[0] : "",
+        d = {
+            m365_tool: l ? r : "unknown_tool",
+            graph_service: ns.has(c) ? c : "unknown",
+            azure_cloud: e.azureCloud ?? "global",
+            is_write: ((u = l == null ? void 0 : l.annotations) == null ? void 0 : u.readOnlyHint) !== !0,
+            duration_ms: o,
+            status: typeof i == "string" ? i : i.isError === !0 ? "error" : "ok",
+            ...a !== void 0 && {
+                http_status: a
+            }
+        };
+    n.logCoworkEvent("builtin_m365_call", d), n.logger.info("[office365-mcp] tool call", d)
+}
+
+function os(e, r, t, o, i, s, a) {
+    const l = {};
+    for (const {
+            config: c,
+            client: d,
+            tools: u,
+            instructions: p
+        }
+        of e) {
+        if (n.isBuiltinMcpEntry(c)) {
+            const v = n.builtinWriteToolCoverageGaps(c, u),
+                P = v.uncovered.filter(m => !Me.has(`${c.server}:${m}`));
+            if (P.length > 0) {
+                for (const m of P) Me.add(`${c.server}:${m}`);
+                n.logger.warn(`[directMcp] built-in ${c.server} exposes write tools with no default-ask coverage: ${P.join(", ")}`), n.logCoworkEvent("builtin_unlisted_write_tools", {
+                    builtin_server: c.server,
+                    unlisted_count: P.length,
+                    unlisted_tool_names: P.slice(0, 20).join(",")
+                })
+            }
+            const y = v.globAllowOnly.filter(m => !Me.has(`glob-allow:${c.server}:${m}`));
+            if (y.length > 0) {
+                for (const m of y) Me.add(`glob-allow:${c.server}:${m}`);
+                n.logger.warn(`[directMcp] built-in ${c.server} exposes unlisted write tools pre-approved only by wildcard allow keys: ${y.join(", ")}`), n.logCoworkEvent("builtin_glob_allow_write_tools", {
+                    builtin_server: c.server,
+                    glob_allow_count: y.length,
+                    glob_allow_tool_names: y.slice(0, 20).join(",")
+                })
+            }
+        }
+        const h = c.toolPolicy ? u.filter(v => n.lookupMcpToolPolicy(c.toolPolicy, v.name) !== "blocked") : u,
+            f = o ? h.filter(v => o[`${c.name}:${v.name}`] !== !1) : h;
+        if (f.length === 0) continue;
+        const _ = new xr({
+            name: c.name,
+            version: "1.0.0"
+        }, {
+            capabilities: {
+                tools: {}
+            },
+            instructions: p
+        });
+        _.server.setRequestHandler(n.ListToolsRequestSchema, async () => ({
+            tools: f.map(v => ({
+                name: v.name,
+                description: v.description ?? v.name,
+                inputSchema: v.inputSchema,
+                ...v._meta != null && {
+                    _meta: v._meta
+                }
+            }))
+        }));
+        const A = new Set(f.map(v => v.name));
+        _.server.setRequestHandler(n.CallToolRequestSchema, async (v, P) => {
+            const {
+                name: y,
+                arguments: m
+            } = v.params;
+            if (!A.has(y) || s != null && s(c.name, y)) return {
+                content: [{
+                    type: "text",
+                    text: `Tool '${y}' is not permitted`
+                }],
+                isError: !0
+            };
+            let g = d,
+                w = c;
+            if (a) {
+                const T = Date.now(),
+                    k = n.isBuiltinMcpEntry(c);
+                let S = null,
+                    R;
+                try {
+                    S = await a(c.name)
+                } catch (O) {
+                    R = O
+                }
+                if (S) g = S.client, w = S.config;
+                else {
+                    const O = R ?? new Error(`MCP server "${c.name}" is no longer configured.`),
+                        D = O instanceof Y.BuiltinMcpUserDisconnectedError || O instanceof n.ParkedMcpUserDisconnectedError,
+                        L = D ? "user_disconnected" : k ? "respawn_failed" : "reconnect_failed";
+                    return n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                        server_name: c.name,
+                        server_type: k || c.transport === "stdio" ? "local" : "remote",
+                        tool_name: `mcp__${c.name}__${y}`,
+                        is_error: !0,
+                        duration_ms: Date.now() - T,
+                        error_type: L,
+                        session_id: r,
+                        session_type: t,
+                        user_message_uuid: i == null ? void 0 : i()
+                    }), k && ut(c, y, u, Date.now() - T, D ? "user_disconnected" : "respawn_failed"), dt(O)
+                }
+            }
+            if (n.lookupMcpToolPolicy(w.toolPolicy, y) === "blocked") return {
+                content: [{
+                    type: "text",
+                    text: `Tool '${y}' is not permitted`
+                }],
+                isError: !0
+            };
+            const C = async () => {
+                var R;
+                if (!A.has(y) || s != null && s(c.name, y)) return `Tool '${y}' is not permitted`;
+                const T = await (a == null ? void 0 : a(c.name).catch(() => null)),
+                    k = (T == null ? void 0 : T.config) ?? w,
+                    S = n.getManagedConfig();
+                return n.lookupMcpToolPolicy(n.resolveManagedToolPolicy(k.name, {
+                    poolConfig: k,
+                    freshConfig: {
+                        managedMcpServers: S.mcp.managedServers,
+                        orgPluginSettings: (R = S.plugins) == null ? void 0 : R.settings
+                    }
+                }), y) === "blocked" ? `Tool '${y}' is not permitted` : (T == null ? void 0 : T.client) ?? g
+            }, b = Date.now(), E = await Dr(g, c.name, w.transport, y, m ?? {}, r, t, i, C, P == null ? void 0 : P.signal);
+            return ut(w, y, u, Date.now() - b, E), E
+        }), l[c.name] = {
+            type: "sdk",
+            name: c.name,
+            instance: _
+        }
+    }
+    return l
+}
+async function Dr(e, r, t, o, i, s, a, l, c, d) {
+    const u = () => d != null && d.aborted ? {
+            content: [{
+                type: "text",
+                text: `Tool '${o}' call was cancelled.`
+            }],
+            isError: !0
+        } : null,
+        p = t === "http" || t === "sse" ? "remote" : "local",
+        h = Date.now();
+    let f = 0;
+    const _ = new Map,
+        A = {
+            session_id: s,
+            session_type: a,
+            user_message_uuid: l == null ? void 0 : l()
+        },
+        v = (y, m) => {
+            for (const g of _.values()) g.remove();
+            _.clear(), n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                server_name: r,
+                server_type: p,
+                tool_name: `mcp__${r}__${o}`,
+                is_error: y,
+                duration_ms: Date.now() - h - f,
+                ...m && {
+                    error_type: m
+                },
+                ...A
+            })
+        };
+    let P = e;
+    for (let y = 0;; y++) {
+        const m = u();
+        if (m) return v(!0), m;
+        try {
+            const g = await P.callTool({
+                name: o,
+                arguments: i
+            }, void 0, {
+                timeout: ct
+            });
+            if (g._meta && "anthropic_error_code" in g._meta) {
+                const {
+                    anthropic_error_code: w,
+                    ...C
+                } = g._meta;
+                g._meta = Object.keys(C).length > 0 ? C : void 0
+            }
+            return v(g.isError === !0), g
+        } catch (g) {
+            if (n.isUrlElicitationRequired(g) && y < rs) {
+                const b = n.extractUrlElicitations(g);
+                if (b.length > 0) {
+                    try {
+                        for (const k of b) n.assertHttps(k.url)
+                    } catch (k) {
+                        return n.logger.warn("[custom3p-mcp] elicitation URL rejected", {
+                            serverName: r,
+                            toolName: o,
+                            error: String(k)
+                        }), v(!0, "elicitation_rejected"), {
+                            content: [{
+                                type: "text",
+                                text: `Tool call failed: ${String(k)}`
+                            }],
+                            isError: !0
+                        }
+                    }
+                    n.registerCompletionBatch(r, b, _);
+                    const E = Date.now();
+                    let T = !0;
+                    try {
+                        for (const k of b) {
+                            if (u()) {
+                                T = !1;
+                                break
+                            }
+                            if (!await n.openAndAwaitElicitation(r, k, _.get(k.elicitationId))) {
+                                T = !1;
+                                break
+                            }
+                        }
+                    } catch (k) {
+                        f += Date.now() - E;
+                        const S = k instanceof Error ? k.message : String(k);
+                        return n.logger.warn("[custom3p-mcp] elicitation dialog failed", {
+                            serverName: r,
+                            toolName: o,
+                            error: S
+                        }), v(!0), {
+                            content: [{
+                                type: "text",
+                                text: `Tool call failed: ${S}`
+                            }],
+                            isError: !0
+                        }
+                    }
+                    if (f += Date.now() - E, T) {
+                        if (c) {
+                            let k;
+                            try {
+                                k = await c()
+                            } catch (S) {
+                                k = `Tool '${o}' is not available: ${S instanceof Error?S.message:String(S)}`
+                            }
+                            if (typeof k == "string") return v(!0), {
+                                content: [{
+                                    type: "text",
+                                    text: k
+                                }],
+                                isError: !0
+                            };
+                            P = k
+                        }
+                        n.logger.info("[custom3p-mcp] retrying tool after URL elicitation", {
+                            serverName: r,
+                            toolName: o,
+                            attempt: y + 1
+                        });
+                        continue
+                    }
+                    return v(!0), {
+                        content: [{
+                            type: "text",
+                            text: `Tool '${o}' requires completing a step in your browser. The step was cancelled.`
+                        }],
+                        isError: !0
+                    }
+                }
+            }
+            const w = n.redactEmbeddedUrls(g instanceof Error ? g.message : String(g)),
+                C = w.toLowerCase().includes("timeout");
+            return n.logger.error("[custom3p-mcp] tool call failed", {
+                serverName: r,
+                toolName: o,
+                error: w
+            }), v(!0, n.isUrlElicitationRequired(g) ? "elicitation_rejected" : C ? "timeout" : "network_error"), {
+                content: [{
+                    type: "text",
+                    text: `Tool call failed: ${w}`
+                }],
+                isError: !0
+            }
+        }
+    }
+}
+
+function Nr(e) {
+    return e ? /opus-4-6/.test(e) : !1
+}
+
+function St(e, r) {
+    return Nr(e) && r !== "ccd"
+}
+async function Lr(e, r) {
+    if (e.isError || !r.persistScreenshotForDispatch || !e.content.some(s => s.type === "image")) return;
+    const t = [];
+    let o = !1,
+        i = !1;
+    for (const s of e.content)
+        if (t.push(s), s.type === "image") try {
+            const a = await r.persistScreenshotForDispatch(s.data, s.mimeType);
+            a && (o = !0, t.push({
+                type: "text",
+                text: `Screenshot saved to: ${a}`
+            }))
+        } catch (a) {
+            i = !0, n.logger.warn(`Failed to persist screenshot to disk: ${a instanceof Error?a.message:String(a)}`)
+        }
+    o ? t.push({
+        type: "text",
+        text: "Include the saved path(s) in your response so they can be attached for the user."
+    }) : i ? t.push({
+        type: "text",
+        text: "Note: save_to_disk failed — the screenshot could not be written to disk. The image is included inline above."
+    }) : t.push({
+        type: "text",
+        text: "Note: save_to_disk had no effect — screenshots are not persisted to disk in this session. The image is included inline above; refer to it directly. Do not retry with save_to_disk."
+    }), e.content = t
+}
+const is = ["/Applications/", "/System/Applications/"],
+    ss = [/Helper(?:$|\s\()/, /Agent(?:$|\s\()/, /Service(?:$|\s\()/, /Uninstaller(?:$|\s\()/, /Updater(?:$|\s\()/, /^\./],
+    as = new Set(["com.tinyspeck.slackmacgap", "us.zoom.xos", "com.microsoft.teams2", "com.microsoft.teams", "com.apple.MobileSMS", "com.apple.mail", "com.microsoft.Word", "com.microsoft.Excel", "com.microsoft.Powerpoint", "com.microsoft.Outlook", "com.apple.iWork.Pages", "com.apple.iWork.Numbers", "com.apple.iWork.Keynote", "com.google.GoogleDocs", "notion.id", "com.apple.Notes", "md.obsidian", "com.linear", "com.figma.Desktop", "com.github.GitHubDesktop", "com.apple.finder", "com.apple.iCal", "com.apple.systempreferences"]);
+
+function ls(e, r) {
+    for (const t of is)
+        if (e.startsWith(t)) return !0;
+    if (r) {
+        const t = r.endsWith("/") ? `${r}Applications/` : `${r}/Applications/`;
+        if (e.startsWith(t)) return !0
+    }
+    return !1
+}
+
+function sr(e) {
+    return ss.some(r => r.test(e))
+}
+
+function cs(e, r, t = new Set, o = "darwin", i) {
+    const s = i !== void 0 ? e.filter(v => v.bundleId !== i) : e;
+    if (o === "win32") {
+        const v = new Set,
+            P = [];
+        for (const w of s) t.has(w.bundleId) && v.add(w.displayName.trim().normalize("NFC")), !sr(w.displayName) && P.push(w.displayName);
+        const y = Qe(P),
+            [m, g] = y.reduce((w, C) => (w[v.has(C) ? 0 : 1].push(C), w), [
+                [],
+                []
+            ]);
+        return ar([...m, ...g])
+    }
+    const a = [],
+        l = [],
+        c = new Set;
+    for (const v of s) {
+        if (t.has(v.bundleId) && c.add(v.displayName.trim().normalize("NFC")), as.has(v.bundleId)) {
+            l.push(v.displayName);
+            continue
+        }
+        ls(v.path, r) && (sr(v.displayName) || a.push(v.displayName))
+    }
+    const d = Qe(l),
+        u = Qe(a),
+        p = new Set(d),
+        h = u.filter(v => !p.has(v)),
+        f = [...d, ...h],
+        [_, A] = f.reduce((v, P) => (v[p.has(P) || c.has(P) ? 0 : 1].push(P), v), [
+            [],
+            []
+        ]);
+    return ar([..._, ...A])
+}
+const ds = /^[\p{L}\p{N}_ .&'()+-]+$/u,
+    us = 40,
+    Xe = 200;
+
+function ps(e, r) {
+    const t = new Set,
+        o = [];
+    for (const i of e) {
+        const s = i.trim().normalize("NFC");
+        s && (s.length > us || ds.test(s) && (t.has(s) || (t.add(s), o.push(s))))
+    }
+    return o.sort((i, s) => i.localeCompare(s)), o
+}
+
+function Qe(e) {
+    return ps(e)
+}
+
+function ar(e) {
+    if (e.length <= Xe) return e;
+    const r = e.length - Xe;
+    return [...e.slice(0, Xe), `... and ${r} more`]
+}
+const lr = 1e3;
+async function hs() {
+    try {
+        const e = n.getComputerUseHostAdapter(),
+            r = e.executor.listInstalledApps(),
+            t = new Promise(s => setTimeout(() => s(void 0), lr)),
+            o = await Promise.race([r, t]);
+        if (!o) {
+            n.logger.debug(`[cu] app enumeration exceeded ${lr}ms, omitting list`), r.catch(() => {});
+            return
+        }
+        let i = new Set;
+        try {
+            const s = e.executor.listRunningApps(),
+                a = await Promise.race([s, t]);
+            a ? i = new Set(a.map(l => l.bundleId)) : s.catch(() => {})
+        } catch {}
+        return cs(o, yr.homedir(), i, n.PLATFORM_CAPABILITIES.platform, e.executor.capabilities.hostBundleId)
+    } catch (e) {
+        n.logger.debug("[cu] app enumeration failed, tool description will omit list", {
+            error: e
+        });
+        return
+    }
+}
+n.isComputerUseEnabled() && (async () => {
+    try {
+        await n.getComputerUseHostAdapter().executor.listInstalledApps(), n.logger.debug("[cu] app enumeration pre-warm complete")
+    } catch {}
+})();
+const ms = " IMPORTANT: in this session the individual interaction tools (left_click, type, key, scroll, drag, etc.) are NOT available — this is the ONLY way to click, type, or otherwise interact with the computer. A single action is just a one-item batch.";
+
+function pt(e) {
+    return Le.buildComputerUseTools({
+        ...n.PLATFORM_CAPABILITIES,
+        teachMode: n.getChicagoTeachModeEnabled()
+    }, n.getChicagoCoordinateMode(), e).map(r => ({
+        name: r.name,
+        description: r.description ?? "",
+        inputSchema: r.inputSchema
+    }))
+}
+let V, cr = !1;
+async function fs() {
+    if (V && cr) return V;
+    const e = await hs();
+    return e && e.length > 0 ? (V = pt(e), cr = !0) : V || (V = pt(void 0)), V
+}
+async function gs(e, r) {
+    const t = n.isComputerUseEnabled() ? await fs() : V ?? (V = pt(void 0)),
+        o = n.getChicagoBatchOnly() ? t.filter(s => !Le.CU_BATCH_ONLY_HIDDEN_TOOLS.has(s.name)).map(s => s.name === "computer_batch" ? {
+            ...s,
+            description: `${s.description}${ms}`
+        } : s) : t,
+        i = St(e, r) ? o.map(s => ({
+            ...s,
+            alwaysLoad: !0
+        })) : o;
+    return {
+        serverName: n.SERVER_NAME$2,
+        tools: i,
+        isEnabled: ur.isEnabled,
+        handleToolCall: ur.handleToolCall
+    }
+}
+const dr = new WeakMap,
+    ys = "Another Claude session is currently using the computer. Wait for the user to acknowledge it is finished (stop button in the Claude window), or find a non-computer-use approach if one is readily apparent.";
+
+function ws(e) {
+    return {
+        getAllowedApps: () => {
+            var r;
+            return ((r = e.getCuAllowedApps) == null ? void 0 : r.call(e)) ?? []
+        },
+        getGrantFlags: () => {
+            var r;
+            return ((r = e.getCuGrantFlags) == null ? void 0 : r.call(e)) ?? Le.DEFAULT_GRANT_FLAGS
+        },
+        getUserDeniedBundleIds: () => n.getAppPreference("chicagoUserDeniedBundleIds"),
+        getSelectedDisplayId: () => {
+            var r;
+            return (r = e.getCuSelectedDisplayId) == null ? void 0 : r.call(e)
+        },
+        getDisplayPinnedByModel: e.getCuDisplayPinnedByModel,
+        getDisplayResolvedForApps: e.getCuDisplayResolvedForApps,
+        getTeachModeActive: e.getTeachModeActive,
+        getLastScreenshotDims: e.getCuLastScreenshotDims,
+        onPermissionRequest: e.onComputerUsePermissionRequest,
+        onTeachPermissionRequest: e.onComputerUseTeachPermissionRequest,
+        onAllowedAppsChanged: e.onCuPermissionUpdated ? (r, t) => e.onCuPermissionUpdated([...r], t) : void 0,
+        onAppsHidden: e.onAppsHidden,
+        getHiddenPendingNote: e.getHiddenPendingNote,
+        drainHiddenPendingNote: e.drainHiddenPendingNote,
+        getClipboardStash: e.getClipboardStash,
+        onClipboardStashChanged: e.onClipboardStashChanged,
+        onResolvedDisplayUpdated: e.onCuSelectedDisplayUpdated,
+        onDisplayPinned: e.onCuDisplayPinned,
+        onDisplayResolvedForApps: e.onCuDisplayResolvedForApps,
+        onScreenshotCaptured: e.onCuScreenshotDimsUpdated,
+        onTeachModeActivated: e.onTeachModeActivated,
+        onTeachStep: e.onTeachStep,
+        onTeachWorking: e.onTeachWorking,
+        checkCuLock: e.checkCuLock ? async () => e.checkCuLock() : void 0,
+        acquireCuLock: e.acquireCuLock ? async () => e.acquireCuLock() : void 0,
+        formatLockHeldMessage: () => ys,
+        isAborted: e.isAborted,
+        isUnattended: e.isUnattendedSession,
+        cuOnlyMode: process.env.COWORK_CU_ONLY !== "0" && n.isFeatureEnabled("3371831021")
+    }
+}
+
+function _s(e) {
+    const r = dr.get(e);
+    if (r) return r;
+    const t = Le.bindSessionContext(n.getComputerUseHostAdapter(), n.getChicagoCoordinateMode(), ws(e));
+    return dr.set(e, t), t
+}
+async function vs(e, r, t) {
+    var h;
+    const o = f => ({
+        isError: !0,
+        content: [{
+            type: "text",
+            text: f
+        }],
+        telemetry: {
+            error_kind: "feature_disabled"
+        }
+    });
+    if (!e.onComputerUsePermissionRequest) return o("Computer Use is available but not enabled, and this session is not wired with a permission handler to show the enable prompt. Computer control is not available here.");
+    if (r !== "request_access") return o("Computer Use is available but not yet enabled. Call request_access to show the user an in-chat enable prompt.");
+    const i = await n.ensureOsPermissions(),
+        s = i.granted ? void 0 : {
+            accessibility: i.accessibility,
+            screenRecording: i.screenRecording
+        },
+        a = typeof t.reason == "string" ? t.reason.trim() : "",
+        l = {
+            requestId: yt.randomUUID(),
+            reason: a,
+            apps: [],
+            requestedFlags: {},
+            screenshotFiltering: n.PLATFORM_CAPABILITIES.screenshotFiltering,
+            featureDisabled: !0,
+            ...s && {
+                tccState: s
+            }
+        },
+        c = new AbortController;
+    try {
+        await e.onComputerUsePermissionRequest(l, c.signal)
+    } finally {
+        c.abort()
+    }
+    if (n.isComputerUseAvailableButOptedOut()) return o("The user saw the enable prompt and chose not to turn on Computer Use. Do not retry in this turn. Let the user know you can't complete this without computer use and offer an alternative if one exists. If the user sends a new request that requires computer use, you may call request_access again.");
+    const d = `
+
+IMPORTANT — safety rules now in effect:
+
+` + n.resolveSection((h = e.getSpSectionPrompts) == null ? void 0 : h.call(e), n.SP_SECTION_KEYS.cuSafetyRules, vt),
+        u = await n.ensureOsPermissions();
+    if (u.granted) return o("Computer Use is now enabled. Call request_access again to select which applications Claude may control." + d);
+    const p = [];
+    return u.accessibility || p.push("Accessibility"), u.screenRecording || p.push("Screen Recording"), o(`Computer Use is now enabled, but ${p.join(" and ")} permission(s) are not yet granted. These need to be granted in the Claude desktop app. Once the user grants them, call request_access again to select applications.` + d)
+}
+const ur = {
+        isEnabled: e => e.sessionType === "ccd" ? n.isComputerUseEnabled() : n.isComputerUseRegisterable(),
+        handleToolCall: async (e, r, t) => {
+            var p, h, f, _, A, v, P;
+            const o = V != null && V.some(y => y.name === e) ? e : "unknown";
+            if (n.isComputerUseAvailableButOptedOut()) {
+                const y = Date.now(),
+                    m = g => {
+                        var w;
+                        n.logCoworkEvent("cu_tool_call", {
+                            session_id: t.sessionId,
+                            session_type: t.sessionType,
+                            user_message_uuid: (w = t.getMessageUuid) == null ? void 0 : w.call(t),
+                            tool_name: `internal__${n.SERVER_NAME$2}__${o}`,
+                            is_error: !0,
+                            error_kind: g,
+                            duration_ms: Date.now() - y,
+                            is_teach_mode: !1,
+                            coordinate_mode: n.getChicagoCoordinateMode()
+                        })
+                    };
+                try {
+                    const g = await vs(t, e, r);
+                    m((p = g.telemetry) == null ? void 0 : p.error_kind);
+                    const {
+                        telemetry: w,
+                        ...C
+                    } = g;
+                    return C
+                } catch (g) {
+                    throw m("other"), g
+                }
+            }
+            const i = _s(t),
+                {
+                    save_to_disk: s,
+                    ...a
+                } = r,
+                l = ((h = t.getTeachModeActive) == null ? void 0 : h.call(t)) ?? !1,
+                c = n.getChicagoCoordinateMode(),
+                d = Date.now(),
+                u = y => {
+                    var m;
+                    n.logCoworkEvent("cu_tool_call", {
+                        session_id: t.sessionId,
+                        session_type: t.sessionType,
+                        user_message_uuid: (m = t.getMessageUuid) == null ? void 0 : m.call(t),
+                        tool_name: `internal__${n.SERVER_NAME$2}__${o}`,
+                        is_error: y.isError,
+                        error_kind: y.errorKind,
+                        duration_ms: Date.now() - d,
+                        is_teach_mode: l,
+                        coordinate_mode: c,
+                        granted_count: y.grantedCount,
+                        denied_count: y.deniedCount,
+                        denied_browser_count: y.deniedBrowserCount,
+                        denied_terminal_count: y.deniedTerminalCount
+                    })
+                };
+            try {
+                const y = await i(e, a);
+                u({
+                    isError: y.isError ?? !1,
+                    errorKind: (f = y.telemetry) == null ? void 0 : f.error_kind,
+                    grantedCount: (_ = y.telemetry) == null ? void 0 : _.granted_count,
+                    deniedCount: (A = y.telemetry) == null ? void 0 : A.denied_count,
+                    deniedBrowserCount: (v = y.telemetry) == null ? void 0 : v.denied_browser_count,
+                    deniedTerminalCount: (P = y.telemetry) == null ? void 0 : P.denied_terminal_count
+                });
+                const {
+                    screenshot: m,
+                    telemetry: g,
+                    ...w
+                } = y;
+                return (e === "screenshot" || e === "zoom" || e === "computer_batch") && s === !0 && t.persistScreenshotForDispatch && await Lr(w, t), w
+            } catch (y) {
+                throw u({
+                    isError: !0,
+                    errorKind: "other"
+                }), y
+            }
+        }
+    },
+    Ur = "Window Halo",
+    Fr = "halo_attach",
+    qr = "halo_detach",
+    Ss = [{
+        name: Fr,
+        description: "Draw a coloured glow behind a running macOS app's window so the user can tell at a glance which window you're driving or referring to. Tracks the app's frontmost window across move/resize/focus and auto-removes when the app exits. Identify the app by exactly one of pid, bundlePath, or appName. Idempotent — re-calling with the same target updates label/hue in place.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                pid: {
+                    type: "number",
+                    description: "Target process id."
+                },
+                bundlePath: {
+                    type: "string",
+                    description: "Absolute path to a .app bundle. Use when this session launched the app via `open` and the GUI process pid isn't known."
+                },
+                appName: {
+                    type: "string",
+                    description: "App name as shown in the menu bar / Activity Monitor (e.g. 'Finder', 'Safari'). Resolved against running applications with a visible window."
+                },
+                label: {
+                    type: "string",
+                    description: "Short text shown in a pill above the window's title bar. Defaults to this session's short id."
+                },
+                hue: {
+                    type: "number",
+                    description: "Colour hue in degrees [0,360). Omit to use a deterministic per-session hue. Anthropic clay is ~15."
+                },
+                cornerRadius: {
+                    type: "number",
+                    description: "Override the auto-measured window corner radius (pt). Only needed for apps with custom window shapes; the default matches standard macOS windows."
+                }
+            }
+        }
+    }, {
+        name: qr,
+        description: "Remove a halo previously attached with halo_attach. Identify the app the same way (pid, bundlePath, or appName); omit all to remove every halo this process has attached.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                pid: {
+                    type: "number"
+                },
+                bundlePath: {
+                    type: "string"
+                },
+                appName: {
+                    type: "string"
+                }
+            }
+        }
+    }];
+
+function bs(e) {
+    let r = 5381;
+    for (let t = 0; t < e.length; t++) r = (r << 5) + r + e.charCodeAt(t) | 0;
+    return (r % 360 + 360) % 360
+}
+
+function ve(e) {
+    return {
+        content: [{
+            type: "text",
+            text: e
+        }],
+        isError: !0
+    }
+}
+async function Ts(e, r, t) {
+    if (process.platform !== "darwin") return ve("halo_* is macOS-only.");
+    const o = await n.maybeGetClaudeSwift(),
+        i = o == null ? void 0 : o.sessionHalo;
+    if (!i) return ve("sessionHalo native module not available (nest-only / harness builds skip it).");
+    const s = r,
+        a = typeof s.pid == "number" || !!s.bundlePath || !!s.appName,
+        l = await ks(s);
+    if (a && !l) return ve(s.appName ? `No running app named "${s.appName}" with a visible window.` : "No running app matched the given pid/bundlePath.");
+    if (e === qr) return l ? await i.detach(l) : await i.detachAll(), {
+        content: [{
+            type: "text",
+            text: "Halo detached."
+        }]
+    };
+    if (e === Fr) {
+        if (!l) return ve("Provide one of: pid, bundlePath, appName.");
+        const c = t.sessionId.slice(0, 8),
+            d = s.label ?? c,
+            u = s.hue ?? bs(c);
+        return await i.attach({
+            ...l,
+            label: d,
+            hue: u,
+            cornerRadius: s.cornerRadius
+        }), n.logger.info("[halo] attached %o", {
+            ...l,
+            hue: u
+        }), {
+            content: [{
+                type: "text",
+                text: `Halo attached (label="${d}", hue=${Math.round(u)}). It tracks the app's frontmost window and auto-removes when the app exits.`
+            }]
+        }
+    }
+    return ve(`Unknown tool: ${e}`)
+}
+async function ks(e) {
+    if (typeof e.pid == "number") return {
+        pid: e.pid
+    };
+    if (e.bundlePath) return {
+        bundlePath: e.bundlePath
+    };
+    if (!e.appName) return;
+    const r = await n.maybeGetClaudeSwift(),
+        t = e.appName.toLowerCase().trim(),
+        o = r == null ? void 0 : r.desktop.getOpenWindows().find(i => i.appName.toLowerCase() === t);
+    return (o == null ? void 0 : o.pid) !== void 0 ? {
+        pid: o.pid
+    } : void 0
+}
+
+function Es() {
+    return {
+        serverName: Ur,
+        tools: Ss,
+        handleToolCall: Ts,
+        isEnabled: () => process.platform === "darwin" && !1
+    }
+}
+const bt = "ccd_directory",
+    ht = "request_directory",
+    Cs = `mcp__${bt}__${ht}`,
+    As = "Request access to a directory on the user's computer that is outside your current working directory. If you know the path, pass it — the user sees and approves it. If you omit `path`, a native folder picker opens. Use this whenever the user asks you to work with files you don't currently have access to.";
+
+function Ps() {
+    return {
+        serverName: bt,
+        tools: [{
+            name: ht,
+            description: As,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    path: {
+                        type: "string",
+                        description: "Absolute host path to grant (e.g. ~/Downloads). Omit to open the native folder picker."
+                    }
+                }
+            }
+        }],
+        isEnabled: e => e.sessionType === "ccd" && !e.isSSH,
+        handleToolCall: async (e, r, t) => {
+            if (e !== ht) return {
+                content: [{
+                    type: "text",
+                    text: `Unknown tool: ${e}`
+                }],
+                isError: !0
+            };
+            if (!t.addDirectories) return {
+                content: [{
+                    type: "text",
+                    text: "Directory access is not supported in this session."
+                }],
+                isError: !0
+            };
+            const o = typeof r.path == "string" && r.path.trim().length > 0 ? r.path.trim() : void 0,
+                {
+                    pickAndValidateMountFolder: i
+                } = await Promise.resolve().then(() => require("./index.chunk-2eoqELgE.js")),
+                s = await i({
+                    providedPath: o,
+                    dialogTitle: "Select a folder to share with Claude",
+                    dialogMessage: "Claude is requesting access to a folder on your computer.",
+                    sessionStorageDir: null
+                });
+            if (!s.ok) return s.error ? {
+                content: [{
+                    type: "text",
+                    text: s.error
+                }],
+                isError: !0
+            } : {
+                content: [{
+                    type: "text",
+                    text: "Directory selection was cancelled by the user."
+                }]
+            };
+            const a = n.mountPathOf(s.resolved);
+            return await t.addDirectories([a]) ? {
+                content: [{
+                    type: "text",
+                    text: `Folder access granted: ${a}
+
+Use this exact path with Read/Write/Edit/Grep/Glob.`
+                }]
+            } : {
+                content: [{
+                    type: "text",
+                    text: "Failed to grant folder access — it may be outside your administrator's allowed folders, or the session is no longer available."
+                }],
+                isError: !0
+            }
+        }
+    }
+}
+const Tt = "ccd_session",
+    pr = "spawn_task",
+    hr = "dismiss_task",
+    mr = "mark_chapter",
+    Rs = `mcp__${Tt}__${n.READ_WIDGET_CONTEXT}`,
+    Is = "Read context from an embedded interactive widget. Widgets are rendered alongside chat from prior tool calls and can be interacted with by the user. Call this when you need to know the current state of a widget.",
+    Ms = {
+        type: "object",
+        properties: {
+            tool_name: {
+                type: "string",
+                description: "The name of the widget tool to get context for"
+            }
+        },
+        required: ["tool_name"]
+    },
+    xs = `Flag an out-of-scope issue for a separate background task.
+
+Call this when you notice something worth fixing that would bloat the current change — dead code, stale docs, missing coverage, a confirmed TODO, or a security issue spotted in passing. Don't flag vague code-smell observations, trivial fixes you can do inline, or low-confidence hunches. A chip appears for the user; one click spins it off into its own session. Your current turn continues uninterrupted.
+
+The prompt must stand alone — include file paths and enough context to act without this conversation.
+
+The result includes a task_id; call dismiss_task with it if the suggestion later becomes stale.`,
+    Os = `Withdraw a background-task chip you previously created with spawn_task.
+
+Call this when a suggestion you flagged is now stale, superseded, or irrelevant — e.g. you (or the user) already fixed it in this session, or you spawned a better-scoped replacement. To replace a chip: call spawn_task with the new suggestion first, then dismiss the old task_id.
+
+Only chips the user hasn't acted on can be withdrawn. If the user already started or dismissed the task, the result says so and nothing changes — do not retry. Task ids are not persisted across app restarts.`,
+    $s = {
+        type: "object",
+        properties: {
+            task_id: {
+                type: "string",
+                description: "The task_id returned by the spawn_task call that created the chip."
+            },
+            reason: {
+                type: "string",
+                description: 'Optional one-line reason the suggestion is no longer needed, e.g. "fixed in this session" or "superseded by task_ab12cd34".'
+            }
+        },
+        required: ["task_id"]
+    },
+    Ds = `Mark the start of a new chapter in this session.
+
+Call this when the work shifts to a meaningfully different phase — e.g. after finishing exploration and starting implementation, after a fix lands and you move to verification, or when the user pivots to an unrelated request. The user sees a divider in the transcript and a floating table of contents for jumping between chapters.
+
+Use sparingly: a chapter should cover a coherent stretch of work, not every tool call. A typical session has 3–8 chapters. Do not mark a chapter for the very first message — the session start is implicit.
+
+The title is a short noun phrase ("Codebase exploration", "Auth bug fix", "Test verification"), not a sentence.`,
+    Ns = {
+        type: "object",
+        properties: {
+            title: {
+                type: "string",
+                description: "Short noun-phrase title for the chapter (under 40 chars). Shown in the table of contents."
+            },
+            summary: {
+                type: "string",
+                description: "Optional one-line summary of what this chapter covers. Shown on hover in the table of contents."
+            }
+        },
+        required: ["title"]
+    },
+    Ls = {
+        type: "object",
+        properties: {
+            title: {
+                type: "string",
+                description: 'Under 60 chars. Imperative action phrase (start with a verb), e.g. "Fix stale README badge", "Remove dead config option". Shown as the chip label and the spawned session title.'
+            },
+            prompt: {
+                type: "string",
+                description: "The initial message for the spawned session. Self-contained — include file paths and enough context to act without this conversation. Not shown directly in the UI."
+            },
+            tldr: {
+                type: "string",
+                description: "1-2 sentence plain-English summary of what the spawned session will do and why. Shown to the user in a tooltip — keep it readable, no file paths or code."
+            },
+            cwd: {
+                type: "string",
+                description: "Optional. Absolute path to a different project root than the current session's. The spawned session gets a fresh worktree under this path. Defaults to the current project — only set this when the work clearly belongs in another repo on the user's machine."
+            }
+        },
+        required: ["title", "prompt", "tldr"]
+    };
+
+function Us() {
+    return {
+        serverName: Tt,
+        tools: [{
+            name: pr,
+            description: xs,
+            inputSchema: Ls,
+            alwaysLoad: !0
+        }, {
+            name: hr,
+            description: Os,
+            inputSchema: $s,
+            alwaysLoad: !0
+        }, {
+            name: mr,
+            description: Ds,
+            inputSchema: Ns,
+            alwaysLoad: !0
+        }, ...n.isFeatureEnabled("3516166472") ? [{
+            name: n.READ_WIDGET_CONTEXT,
+            description: Is,
+            inputSchema: Ms,
+            alwaysLoad: !0
+        }] : []],
+        isEnabled: e => e.sessionType === "ccd",
+        handleToolCall: async (e, r, t) => {
+            if (e === n.READ_WIDGET_CONTEXT) {
+                const h = typeof r.tool_name == "string" ? r.tool_name : "",
+                    {
+                        claudeCodeSessionManager: f
+                    } = await Promise.resolve().then(() => require("./index.chunk-B3Z2xpgG.js")),
+                    _ = f.getWidgetToolStates(t.sessionId) ?? [],
+                    A = _.filter(P => P.tool_name === h);
+                if (A.length === 0) {
+                    const P = [...new Set(_.map(y => y.tool_name))];
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `No widget context available for tool '${h}'.` + (P.length > 0 ? ` Available widgets: ${P.join(", ")}` : "")
+                        }],
+                        isError: !0
+                    }
+                }
+                const v = [];
+                for (const P of A)
+                    for (const y of P.content) y.type === "text" && y.text !== void 0 ? v.push({
+                        type: "text",
+                        text: y.text
+                    }) : y.type === "image" && y.data !== void 0 && y.media_type !== void 0 && v.push({
+                        type: "image",
+                        data: y.data,
+                        mimeType: y.media_type
+                    });
+                return {
+                    content: v
+                }
+            }
+            if (e === mr) {
+                const h = typeof r.title == "string" ? r.title.trim() : "";
+                return h ? {
+                    content: [{
+                        type: "text",
+                        text: `Chapter marked: "${h}". Continue your current work.`
+                    }]
+                } : {
+                    content: [{
+                        type: "text",
+                        text: "title is required and cannot be empty."
+                    }],
+                    isError: !0
+                }
+            }
+            if (e === hr) {
+                const h = typeof r.task_id == "string" ? r.task_id.trim() : "",
+                    f = typeof r.reason == "string" ? r.reason.trim() : "";
+                if (!/^task_[0-9a-f]{8}$/.test(h)) return {
+                    content: [{
+                        type: "text",
+                        text: "task_id must be the id returned by spawn_task (format: task_xxxxxxxx)."
+                    }],
+                    isError: !0
+                };
+                const {
+                    claudeCodeSessionManager: _
+                } = await Promise.resolve().then(() => require("./index.chunk-B3Z2xpgG.js")), A = _.dismissBackgroundTaskSuggestionById(t.sessionId, h, f || void 0);
+                return {
+                    content: [{
+                        type: "text",
+                        text: {
+                            dismissed: `Task ${h} withdrawn — the chip is no longer shown to the user. Continue your current work.`,
+                            already_started: `Task ${h} was already started by the user — it's no longer pending and can't be withdrawn. Nothing was changed.`,
+                            already_dismissed: `Task ${h} was already dismissed. Nothing was changed.`,
+                            not_found: `No pending task with id ${h}. Task ids are not persisted across app restarts, so a chip from before a restart can no longer be withdrawn. Nothing was changed.`,
+                            session_not_found: `Session not found — cannot look up task ${h}.`
+                        } [A]
+                    }],
+                    ...A === "session_not_found" ? {
+                        isError: !0
+                    } : {}
+                }
+            }
+            if (e !== pr) return {
+                content: [{
+                    type: "text",
+                    text: `Unknown tool: ${e}`
+                }],
+                isError: !0
+            };
+            const o = typeof r.title == "string" ? r.title : "",
+                i = typeof r.prompt == "string" ? r.prompt : "",
+                s = typeof r.tldr == "string" ? r.tldr : "",
+                a = typeof r.cwd == "string" ? r.cwd.trim() : "";
+            if (!i.trim()) return {
+                content: [{
+                    type: "text",
+                    text: "prompt is required and cannot be empty."
+                }],
+                isError: !0
+            };
+            let l;
+            if (a) {
+                if (!bn.isAbsolute(a)) return {
+                    content: [{
+                        type: "text",
+                        text: `cwd must be an absolute path (got "${a}"). Omit cwd to use the current project.`
+                    }],
+                    isError: !0
+                };
+                try {
+                    await n.assertNoUncSymlinkHop(a)
+                } catch (f) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: f instanceof n.UncVerifyError ? `cwd could not be verified (${f.code}). Retry, or omit cwd to use the current project.` : "cwd must be a local path, not a UNC network path. Omit cwd to use the current project."
+                        }],
+                        isError: !0
+                    }
+                }
+                const h = await Sn.promises.stat(a).catch(() => null);
+                if (!(h != null && h.isDirectory())) return {
+                    content: [{
+                        type: "text",
+                        text: `cwd "${a}" does not exist or is not a directory. Omit cwd to use the current project.`
+                    }],
+                    isError: !0
+                };
+                l = a
+            }
+            const {
+                claudeCodeSessionManager: c
+            } = await Promise.resolve().then(() => require("./index.chunk-B3Z2xpgG.js")), d = `task_${Tn.randomBytes(4).toString("hex")}`, u = c.enqueueBackgroundTaskSuggestion(t.sessionId, {
+                id: d,
+                title: o.trim() || void 0,
+                prompt: i.trim(),
+                tldr: s.trim() || void 0,
+                cwd: l
+            });
+            if (u === null) return {
+                content: [{
+                    type: "text",
+                    text: "Session not found — cannot queue the suggestion."
+                }],
+                isError: !0
+            };
+            const p = u.pending.map(h => `${h.id}${h.title?` "${h.title}"`:""}`).join(", ");
+            return {
+                content: [{
+                    type: "text",
+                    text: `Noted (position ${u.position}, task_id: ${d}). A chip is showing for the user — they can start it in a fresh worktree with one click, or dismiss it. If this suggestion becomes stale or superseded, call dismiss_task with this task_id. Currently pending: ${p}. Continue your current work.`
+                }]
+            }
+        }
+    }
+}
+const Fs = j.constants.O_NOFOLLOW ?? 0,
+    qs = j.constants.O_NONBLOCK ?? 0,
+    De = 10 * 1024 * 1024;
+async function js(e, r, t = {
+    remaining: De
+}, o) {
+    const i = r.paths;
+    if (!Array.isArray(i) || i.length === 0) return {
+        error: "file_upload requires a non-empty `paths` array of files the user has shared with this session."
+    };
+    const {
+        validateLocalFileAccess: s
+    } = await Promise.resolve().then(() => require("./index.chunk-DbmKNDSK.js")), a = [];
+    for (const l of i) {
+        if (typeof l != "string") return {
+            error: "file_upload `paths` entries must be strings."
+        };
+        const c = [];
+        if (o) {
+            const h = de.mapVMPathToHostPath(l, o, {
+                    decodeSegments: !1
+                }),
+                f = de.mapVMPathToHostPath(l, o);
+            if (h !== null && c.push(h), f !== null && f !== h && c.push(f), c.length === 0 && de.isScratchpadVMPath(l, o.vmProcessName) && o.sessionStorageDir && !l.split(/[/\\]/).slice(1).some(_ => _ === ".." || _ === "." || _ === "")) return n.logger.warn(`[chromeFileUpload] rejected scratchpad path for session ${e}: ${l}`), {
+                error: `Cannot upload "${l}": this file exists only inside the session's virtual machine. Save or copy it to /sessions/${o.vmProcessName}/mnt/outputs/ first, then retry the upload with that path.`
+            }
+        }
+        c.length === 0 && c.push(l);
+        let d, u = !1;
+        for (const h of c) {
+            let f;
+            try {
+                f = await s("uploadLocalFile", e, h)
+            } catch (A) {
+                const v = A instanceof Error ? A.message : String(A);
+                n.logger.warn(`[chromeFileUpload] rejected path for session ${e}: ${l} (${v})`);
+                continue
+            }
+            const _ = await H.lstat(f).catch(() => null);
+            if (_ === null || !_.isFile()) {
+                u || (u = _ !== null);
+                continue
+            }
+            d = f;
+            break
+        }
+        if (d === void 0) return {
+            error: u ? `Cannot upload "${l}": not a regular file.` : `Cannot upload "${l}": only files the user has shared with this session can be uploaded.`
+        };
+        const p = await Bs(l, d, t);
+        if ("error" in p) return {
+            error: p.error
+        };
+        a.push({
+            data: p.buf.toString("base64"),
+            name: N.basename(d),
+            mimeType: n.mime.getType(d) ?? "application/octet-stream"
+        })
+    }
+    return n.logger.debug(`[chromeFileUpload] session ${e}: ${a.length} file(s), ${De-t.remaining} bytes (budget remaining ${t.remaining})`), {
+        files: a
+    }
+}
+async function Bs(e, r, t) {
+    const o = await H.lstat(r).catch(() => null);
+    if (o === null || !o.isFile()) return {
+        error: `Cannot upload "${e}": not a regular file.`
+    };
+    let i;
+    try {
+        i = await H.open(r, j.constants.O_RDONLY | Fs | qs)
+    } catch (s) {
+        return n.logger.warn(`[chromeFileUpload] open failed: ${e} (${s instanceof Error?s.message:String(s)})`), {
+            error: `Cannot upload "${e}": failed to open file.`
+        }
+    }
+    try {
+        const s = await i.stat(),
+            a = await n.isPathSymlinkFree(r),
+            l = a ? await H.stat(r).catch(() => null) : null;
+        if (!s.isFile() || !a || l === null || l.ino !== s.ino || l.dev !== s.dev) return {
+            error: `Cannot upload "${e}": path moved during validation.`
+        };
+        if (s.size > t.remaining) return {
+            error: `Cannot upload "${e}": total upload size would exceed ${Math.round(De/(1024*1024))} MB. file_upload sends file contents over the browser bridge in a single message; use a smaller file, or split across multiple file_upload calls if the page accepts files one at a time.`
+        };
+        const c = await i.readFile();
+        return c.length > s.size || c.length > t.remaining ? {
+            error: `Cannot upload "${e}": file grew during read.`
+        } : (t.remaining -= c.length, {
+            buf: c
+        })
+    } catch (s) {
+        return n.logger.warn(`[chromeFileUpload] read failed: ${e} (${s instanceof Error?s.message:String(s)})`), {
+            error: `Cannot upload "${e}": failed to read file.`
+        }
+    } finally {
+        await i.close()
+    }
+}
+const jr = n.getChromeSocketClient,
+    Hs = {
+        serverName: n.SERVER_NAME$1,
+        tools: n.BROWSER_TOOLS.map(e => ({
+            name: e.name,
+            description: e.description,
+            inputSchema: e.inputSchema
+        })),
+        getDynamicTools: () => n.buildGrandPrixHostTools().map(e => ({
+            name: e.name,
+            description: e.description,
+            inputSchema: e.inputSchema
+        })),
+        handleToolCall: async (e, r, t, o) => {
+            var P, y, m, g, w, C, b, E, T;
+            const i = new AbortController,
+                s = t.onBrowserPermissionRequest ? async k => {
+                    var R, O, D, L, U;
+                    const S = await t.onBrowserPermissionRequest(k, i.signal);
+                    if (n.logger.debug(`[Chrome MCP] Permission result: allowed=${S.allowed}, always=${S.always??!1}, allSites=${S.allSites??!1}`), S.allowed && S.allSites)(O = t.onChromePermissionUpdated) == null || O.call(t, "skip_all_permission_checks", ((R = t.getChromeAllowedDomains) == null ? void 0 : R.call(t)) ?? []), n.logger.debug('[Chrome MCP] "Allow all sites" → mode=skip_all_permission_checks');
+                    else if (S.allowed && S.always) {
+                        let se;
+                        try {
+                            se = new URL(k.url).host
+                        } catch {}
+                        if (se) {
+                            const he = (D = t.getChromePermissionMode) == null ? void 0 : D.call(t),
+                                be = new Set(((L = t.getChromeAllowedDomains) == null ? void 0 : L.call(t)) ?? []);
+                            be.add(se);
+                            const Te = !he || he === "ask" ? "follow_a_plan" : he;
+                            (U = t.onChromePermissionUpdated) == null || U.call(t, Te, [...be]), n.logger.debug(`[Chrome MCP] "Always allow" → mode=${Te}, stored: ${se}`)
+                        }
+                    }
+                    return S.allowed
+                }: void 0, a = (P = t.getChromePermissionMode) == null ? void 0 : P.call(t), l = (y = t.getChromeAllowedDomains) == null ? void 0 : y.call(t), c = (m = t.getSdkPermissionMode) == null ? void 0 : m.call(t);
+            if (n.logger.debug(`[Chrome MCP] tool=${e} mode=${a??"<unset>"} allowedDomains=[${(l??[]).join(",")}] cicCanUseTool=${t.cicCanUseToolEnabled}`), n.buildGrandPrixHostTools().some(k => k.name === e) && (t.isUnattendedSession === void 0 || t.isUnattendedSession())) return n.logger.info(`[Chrome MCP] ${e} → deny (unattended session)`), {
+                content: [{
+                    type: "text",
+                    text: "This tool requires an attended session."
+                }],
+                isError: !0
+            };
+            const d = {
+                    sessionId: t.sessionId,
+                    tabGroupId: (g = t.getChromeTabGroupId) == null ? void 0 : g.call(t),
+                    displayName: (w = t.getSessionTitle) == null ? void 0 : w.call(t),
+                    userMessageUuid: (C = t.getMessageUuid) == null ? void 0 : C.call(t)
+                },
+                u = (() => {
+                    var k, S;
+                    if (t.cicCanUseToolEnabled) {
+                        if (a === "skip_all_permission_checks") return {
+                            permissionMode: "skip_all_permission_checks",
+                            sessionScope: d
+                        };
+                        if ((c === "auto" || c === "bypassPermissions") && !((k = t.isUnattendedSession) != null && k.call(t))) return {
+                            permissionMode: a ?? "ask",
+                            allowedDomains: l,
+                            onPermissionRequest: s,
+                            sessionScope: d
+                        };
+                        const R = n.CIC_PERMISSIONLESS_TOOLS.has(e) || n.buildGrandPrixHostTools().some(O => O.name === e) || (S = t.consumeCicOnceApproved) == null ? void 0 : S.call(t);
+                        return {
+                            permissionMode: "follow_a_plan",
+                            allowedDomains: R ? [...l ?? [], ...R] : l,
+                            onPermissionRequest: async O => {
+                                let D;
+                                try {
+                                    D = new URL(O.url).host
+                                } catch {}
+                                const L = D ? n.stripCicWww(D) : void 0;
+                                return R && L && [...R].some(U => n.stripCicWww(U) === L) ? !0 : (n.logCoworkEvent("cic_proxy_stale_deny", {
+                                    session_allowed: l ?? [],
+                                    ext_saw: D ?? "<unparseable>",
+                                    once_approved: R ? [...R].join(",") : void 0
+                                }), n.logger.info("[Chrome MCP] Deny — approved-host mismatch. Tab moved or proxy stale."), !1)
+                            },
+                            sessionScope: d
+                        }
+                    }
+                    return a === "follow_a_plan" ? {
+                        permissionMode: "follow_a_plan",
+                        allowedDomains: l,
+                        onPermissionRequest: s,
+                        sessionScope: d
+                    } : a ? {
+                        permissionMode: a,
+                        allowedDomains: l,
+                        onPermissionRequest: s,
+                        sessionScope: d
+                    } : s ? {
+                        permissionMode: "ask",
+                        onPermissionRequest: s,
+                        sessionScope: d
+                    } : {
+                        permissionMode: "ask",
+                        sessionScope: d
+                    }
+                })();
+            n.logger.debug(`[Chrome MCP] Tool call: ${e}, permissionMode=${u.permissionMode}, allowedDomains=${JSON.stringify(u.allowedDomains??[])}`);
+            const p = (k, S) => {
+                    const {
+                        checkUrls: R,
+                        includePermissionState: O,
+                        ...D
+                    } = S;
+                    return k === "browser_batch" && Array.isArray(D.actions) && (D.actions = D.actions.map(L => {
+                        if (typeof L != "object" || L === null) return L;
+                        const U = L;
+                        return typeof U.name != "string" || typeof U.input != "object" || U.input === null ? L : {
+                            ...U,
+                            input: p(U.name, U.input)
+                        }
+                    })), D
+                },
+                {
+                    save_to_disk: h,
+                    ...f
+                } = r;
+            let _ = p(e, f);
+            const A = {
+                    remaining: De
+                },
+                v = async k => {
+                    const S = await js(t.sessionId, k, A, o);
+                    if (S.error) return {
+                        error: S.error
+                    };
+                    const {
+                        paths: R,
+                        ...O
+                    } = k;
+                    return {
+                        input: {
+                            ...O,
+                            files: S.files
+                        }
+                    }
+                };
+            if (e === "file_upload") {
+                const k = await v(_);
+                if (k.error) return i.abort(), {
+                    content: [{
+                        type: "text",
+                        text: k.error
+                    }],
+                    isError: !0
+                };
+                _ = k.input ?? _
+            } else if (e === "browser_batch" && Array.isArray(_.actions)) {
+                const k = [..._.actions];
+                for (let S = 0; S < k.length; S++) {
+                    const R = k[S];
+                    if (R && typeof R == "object" && R.name === "file_upload" && typeof R.input == "object" && R.input !== null) {
+                        const O = await v(R.input);
+                        if (O.error) return i.abort(), {
+                            content: [{
+                                type: "text",
+                                text: O.error
+                            }],
+                            isError: !0
+                        };
+                        k[S] = {
+                            ...R,
+                            input: O.input
+                        }
+                    }
+                }
+                _ = {
+                    ..._,
+                    actions: k
+                }
+            }
+            try {
+                const k = await n.handleToolCall(n.getChromeExtensionMcpContext(), jr(), e, _, u);
+                e === "tabs_context_mcp" && Ws(k, t);
+                const S = (b = k._meta) == null ? void 0 : b.frontLoadedTabGroupId;
+                return typeof S == "number" && ((E = t.getChromeTabGroupId) == null ? void 0 : E.call(t)) !== S && ((T = t.onChromeTabGroupIdUpdated) == null || T.call(t, S)), (e === "computer" || e === "browser_batch") && h === !0 && t.persistScreenshotForDispatch && await Lr(k, t), k
+            } finally {
+                i.abort()
+            }
+        },
+        isEnabled: () => {
+            var e, r;
+            return n.getDeploymentMode().shouldEnableChromeExtensionBridge() && !(((r = (e = n.getChromeExtensionMcpContext()).isDisabled) == null ? void 0 : r.call(e)) ?? !1)
+        }
+    };
+
+function Ws(e, r) {
+    var o, i;
+    if (e.isError) return;
+    const t = (o = e.content) == null ? void 0 : o[0];
+    if (!((t == null ? void 0 : t.type) !== "text" || typeof t.text != "string")) try {
+        const s = JSON.parse(t.text);
+        typeof s.tabGroupId == "number" && ((i = r.onChromeTabGroupIdUpdated) == null || i.call(r, s.tabGroupId))
+    } catch {}
+}
+async function Gs(e, r) {
+    var c, d, u;
+    const t = jr();
+    if (!await t.ensureConnected()) return;
+    const o = {
+        createIfEmpty: !1
+    };
+    "checkUrl" in e ? o.checkUrls = [e.checkUrl] : o.includePermissionState = !0;
+    let i;
+    try {
+        i = await t.callTool("tabs_context_mcp", o, {
+            permissionMode: "ask",
+            sessionScope: r
+        })
+    } catch {
+        return
+    }
+    const s = i;
+    if (!s || s.error) return;
+    const a = (c = s.result) == null ? void 0 : c.content,
+        l = Array.isArray(a) && a[0] && typeof a[0] == "object" && "text" in a[0] && typeof a[0].text == "string" ? a[0].text : void 0;
+    if (l) try {
+        const p = JSON.parse(l);
+        if ("checkUrl" in e) {
+            const f = (d = p.checkedUrls) == null ? void 0 : d[0];
+            return f ? {
+                url: f.url,
+                storageDecision: f.storageDecision
+            } : {
+                url: e.checkUrl
+            }
+        }
+        const h = (u = p.availableTabs) == null ? void 0 : u.find(f => f.tabId === e.tabId);
+        return h ? {
+            url: h.url,
+            storageDecision: h.storageDecision
+        } : void 0
+    } catch {
+        return
+    }
+}
+const Fe = "mcp-registry",
+    zs = "search_mcp_registry",
+    Br = "plugins",
+    kt = "skills",
+    Hr = "cowork-onboarding",
+    Ks = {
+        serverName: Fe,
+        tools: [{
+            name: zs,
+            description: `Search for available connectors in the MCP registry. Call this when connecting to a new MCP might help resolve the user query.
+
+Examples:
+- "check my Asana tasks" → search ["asana", "tasks", "todo"]
+- "find issues in Jira" → search ["jira", "issues"]
+- "help me manage my tasks" → search ["tasks", "todo", "project management"]
+- "did the call cover Mike's latest ticket" → thinking: "I don't have any context about the call or meeting, let's see if there are any connectors available" → search ["meeting", "gong", "meet", "zoom"]
+
+Returns results with connected status. Call suggest_connectors to show unconnected ones to the user.`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    keywords: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "Search keywords in English extracted from user's request (e.g., ['asana', 'tasks', 'todo'] for task-related requests)"
+                    }
+                },
+                required: ["keywords"]
+            }
+        }, {
+            name: "suggest_connectors",
+            description: `Display connector suggestions to the user with Connect buttons. Call this:
+- After search_mcp_registry when it returned connectors that are not yet connected or whose tools are disabled in chat, and would help with the user's task
+- When a tool call fails with an authentication or credential error — pass the server UUID from the failed tool name (format: mcp__{uuid}__{toolName}) so the user can re-authenticate
+
+Do NOT call this if:
+- The connector is already connected and working (just use it directly)
+- None of the search results are relevant to what the user needs`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    uuids: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "UUIDs of connectors to suggest. Either the directoryUuid from search results, or for reconnecting a failed tool, extract the server UUID from the tool name — tool names follow the format mcp__{uuid}__{toolName}, pass just the UUID portion"
+                    },
+                    keywords: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "Single lowercase noun for what the user is working with. Keep it generic — strip product/brand names: ['calendar'] not ['google calendar'], ['issues'] not ['linear'], ['messages'] not ['slack messages']. Renders in the UI as 'For your {keyword}', so it must read naturally after 'For your'."
+                    }
+                },
+                required: ["uuids"]
+            }
+        }, {
+            name: "list_connectors",
+            description: "Render the user's installed connectors as an interactive card. Call this when the user asks what connectors they have; pass keywords to filter. To suggest a connector for the user to add, use suggest_connectors instead.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    keywords: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "Optional keywords to filter installed connectors by name/description"
+                    }
+                },
+                required: []
+            }
+        }],
+        handleToolCall: async (e, r, t) => {
+            if (e === "search_mcp_registry") {
+                const {
+                    keywords: o
+                } = r, s = (await Y.searchDirectoryServers(t.sessionId, o)).slice(0, 10).map(a => {
+                    var d, u;
+                    const l = ((d = a.toolNames) == null ? void 0 : d.slice(0, 8)) ?? [],
+                        c = (((u = a.toolNames) == null ? void 0 : u.length) ?? 0) > l.length;
+                    return {
+                        name: a.name,
+                        description: a.oneLiner,
+                        tools: c ? [...l, `+${a.toolNames.length-8} more`] : l,
+                        url: a.url,
+                        iconUrl: a.iconUrl,
+                        directoryUuid: a.uuid,
+                        connected: a.isConnected,
+                        enabledInChat: a.enabledInChat ?? a.isConnected
+                    }
+                });
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            results: s
+                        })
+                    }]
+                }
+            }
+            if (e === "suggest_connectors") {
+                const {
+                    uuids: o,
+                    keywords: i
+                } = r, a = (await Y.getDirectoryServersByUuids(t.sessionId, o ?? [])).map(l => ({
+                    name: l.name,
+                    description: l.oneLiner,
+                    url: l.url,
+                    iconUrl: l.iconUrl,
+                    directoryUuid: l.uuid
+                }));
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            connectors: a,
+                            keywords: i
+                        })
+                    }]
+                }
+            }
+            if (e === "list_connectors") {
+                const {
+                    keywords: o
+                } = r, s = (await Y.listInstalledDirectoryServers(t.sessionId, o)).map(a => ({
+                    name: a.name,
+                    description: a.oneLiner,
+                    url: a.url,
+                    iconUrl: a.iconUrl,
+                    directoryUuid: a.uuid,
+                    connected: a.isConnected
+                }));
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            connectors: s,
+                            keywords: o,
+                            note: s.length > 0 ? "Connector card rendered above. Any lead-in goes before this call; skip re-listing the connectors in text." : "No installed connectors found — the card did not render. Offer to search the registry (search_mcp_registry)."
+                        })
+                    }]
+                }
+            }
+            return {
+                content: [{
+                    type: "text",
+                    text: "Unknown tool"
+                }],
+                isError: !0
+            }
+        },
+        isEnabled: () => n.getDeploymentMode().type !== "3p"
+    },
+    Ys = {
+        serverName: Br,
+        tools: [{
+            name: "suggest_plugin_install",
+            description: `Render an inline plugin card in the message stream. Works for one plugin or several: with multiple, the card lists them and the user can drill into each to see its skills and Add or Manage it. The card handles all UI — do not describe the plugins in text.
+
+When the user asks what plugins they already have, use list_plugins instead.
+
+Do NOT call this if:
+- The suggestion is not relevant to what the user asked about
+- You are unsure whether the plugin would actually help
+- You already rendered a suggestion this conversation and the user didn't engage`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    contextLabel: {
+                        type: "string",
+                        description: "Short header tying the suggestion to what the user just asked about. 3–5 words, starts with 'For your' for a single suggestion, or a topic phrase for a list. Examples: 'For your sales workflows', 'For your contract reviews', 'Your installed plugins'."
+                    },
+                    plugins: {
+                        type: "array",
+                        description: "Plugins to show. Pass one for a focused suggestion or several to render a browsable list. Source pluginId and skills from search_plugins results.",
+                        items: {
+                            type: "object",
+                            properties: {
+                                pluginName: {
+                                    type: "string",
+                                    description: "Display name of the plugin (e.g., 'Sales')"
+                                },
+                                pluginId: {
+                                    type: "string",
+                                    description: "The plugin ID from search_plugins results"
+                                },
+                                backendId: {
+                                    type: "string",
+                                    description: "The backendId from search_plugins results, when present. Pass it through verbatim."
+                                },
+                                description: {
+                                    type: "string",
+                                    description: "One line describing what the skills do for the user, not what they're called. Plain-language tasks, no period. Good: 'Automate legal briefs, contract reviews, and NDA screening'. Bad: 'Includes brief-writer, contract-review, nda-screen'."
+                                },
+                                skills: {
+                                    type: "array",
+                                    description: "The plugin's skills from the search_plugins result. Shown with disabled 'Try it' until installed, so include them even when the plugin isn't installed yet.",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            name: {
+                                                type: "string"
+                                            },
+                                            description: {
+                                                type: "string"
+                                            }
+                                        },
+                                        required: ["name"]
+                                    }
+                                }
+                            },
+                            required: ["pluginName", "pluginId", "description"]
+                        }
+                    }
+                },
+                required: ["contextLabel", "plugins"]
+            }
+        }, {
+            name: "list_plugins",
+            description: `Render the user's installed plugins as an interactive card with drill-in detail per plugin. Call this when the user asks what plugins they have, instead of writing them out as text.
+
+Routing:
+- "what plugins do I have" / "show my plugins" → call with no args
+- "what {topic} plugins do I have" / "plugins for {topic}" → pass keywords (the filter) and optionally context_label (the header). context_label is display-only and does not filter — without keywords the card shows every installed plugin regardless of the label.
+
+To suggest a plugin the user does not have yet, use search_plugins → suggest_plugin_install instead.
+
+The card renders at the call site, so write any lead-in before the call. The result lists what rendered — skip re-listing in text afterwards.`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    keywords: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "The filter — matches installed plugins by name, description, or skills (e.g. ['spotify']). Always pass this when the user names a topic; omit only when listing everything."
+                    },
+                    context_label: {
+                        type: "string",
+                        description: "Display-only header above the card, e.g. 'Your engineering plugins'. Does not filter results — pass keywords for that. Omit when showing all plugins (defaults to 'Your installed plugins')."
+                    }
+                },
+                required: []
+            }
+        }, {
+            name: "search_plugins",
+            description: `Search for installable plugins that match the user's request. Call this when the request references the user's own work context — their pipeline, accounts, contracts, tickets, playbooks, templates, or company data — and you don't already have a tool that covers it. Plugins package the user's org-specific workflows.
+
+Plugins are matched by their skills, commands, and bundled connectors, so requests like "prep for my call with Acme", "review this contract against our playbook", or "what's in my Salesforce pipeline" can surface a plugin even when the user doesn't name one. Do not use browser or web search to find plugins — this is the only source.
+
+Do not call this for generic knowledge tasks you can answer directly ("explain MEDDIC", "draft a cold email", "what is a SAFE note").
+
+Results include a matchedCapabilities array showing which skill, command, or connector matched, plus the plugin's full skills list. When results fit, call suggest_plugin_install once with the matching plugins (and their skills) to render the install card — the card shows skills inline, so describing them in text isn't needed. If nothing relevant, proceed normally without mentioning that you searched.`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    userIntent: {
+                        type: "string",
+                        description: "The user's request in natural language. Pass it verbatim or lightly paraphrased — do not pre-tokenize it into keywords."
+                    },
+                    keywords: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "Optional extra keywords for specific products, domains, or jargon the intent implies but doesn't state (e.g., ['CRM'] when the user says 'my pipeline')."
+                    },
+                    includeInstalled: {
+                        type: "boolean",
+                        description: "Include already-installed plugins in results. Use during onboarding when you want to showcase an existing plugin."
+                    }
+                },
+                required: ["userIntent"]
+            }
+        }],
+        handleToolCall: async (e, r, t) => {
+            var o;
+            if (e === "suggest_plugin_install") {
+                const {
+                    contextLabel: i,
+                    plugins: s
+                } = r, a = s == null ? void 0 : s[0];
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            contextLabel: i,
+                            plugins: s,
+                            note: "Plugin card rendered above. The user's Add click happens out of band — you will not see which plugin they pick. On follow-up, call list_skills with no skill_names (or list_plugins) to discover what was actually installed; do not assume the first plugin in this list.",
+                            ...a && {
+                                pluginName: a.pluginName,
+                                pluginId: a.pluginId,
+                                description: a.description
+                            }
+                        })
+                    }]
+                }
+            }
+            if (e === "list_plugins") {
+                const {
+                    keywords: i,
+                    context_label: s
+                } = r, a = await Y.listInstalledPluginsForWidget(t.sessionId, i), {
+                    results: l
+                } = JSON.parse(a), c = l.map(d => ({
+                    pluginName: d.name,
+                    pluginId: d.id,
+                    description: d.description,
+                    skills: d.skills
+                }));
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            contextLabel: s,
+                            plugins: c,
+                            note: c.length > 0 ? "Plugin card rendered above. Any lead-in goes before this call; skip re-listing the plugins in text." : "No installed plugins matched — the card did not render."
+                        })
+                    }]
+                }
+            }
+            if (e === "search_plugins") {
+                const {
+                    keywords: i,
+                    userIntent: s,
+                    includeInstalled: a
+                } = r;
+                return {
+                    content: [{
+                        type: "text",
+                        text: await Y.searchPluginsForSuggestion(t.sessionId, s, i, (o = t.getMessageUuid) == null ? void 0 : o.call(t), a)
+                    }]
+                }
+            }
+            return {
+                content: [{
+                    type: "text",
+                    text: "Unknown tool"
+                }],
+                isError: !0
+            }
+        },
+        isEnabled: e => e.sessionType === "cowork" && e.pluginsEnabled !== !1
+    },
+    mt = {
+        serverName: kt,
+        tools: [{
+            name: "list_skills",
+            description: `Render the user's installed slash-menu skills as an interactive widget with 'Try it' buttons. Use this when the user asks what skills they have, instead of writing skill names in text.
+
+Routing:
+- "what skills do I have" / "show my skills" → call this tool (no args = show all)
+- "any skills for git / docs / {topic}" → call this tool with keywords; if nothing matches, the result will say so — fall back to suggest_skills
+
+To recommend skills the user does NOT have yet, use suggest_skills instead.
+
+Pass relevant names in skill_names; the widget truncates to 5 with an expander. Pass keywords as a fallback. Omit both to show everything. The result lists what actually rendered — call once per request.
+
+The card renders at the call site, so write any lead-in before the call. After the call, a brief follow-up question is fine; skip re-listing the skills.`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    skill_names: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "Names of installed skills to highlight. Omit to show every installed skill."
+                    },
+                    keywords: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "Topic keywords to filter installed skills by name/description (e.g. ['legal', 'contract']). Ignored if skill_names is provided."
+                    },
+                    context_label: {
+                        type: "string",
+                        description: "Short header tying the list to a topic the user asked about, e.g. 'For your engineering work'. Omit when showing all skills (the card defaults to 'Your skills')."
+                    }
+                },
+                required: []
+            }
+        }, {
+            name: "suggest_skills",
+            description: `Render an interactive widget of standalone skills the user can add (org/shared/Anthropic skills not yet enabled) with 'Add' buttons. Use when the user asks you to recommend skills, asks for skills for a domain they have nothing installed for, or when list_skills returned zero matches. Use list_skills instead for skills they already have.
+
+Covers standalone skills only — when search_plugins is available, also call it with the same keywords (skills may live inside an uninstalled plugin).
+
+Do NOT write a lead-in before this call — pass context_label for the header. The result may be empty; its note field tells you what to do next.`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    keywords: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        },
+                        description: "Topic keywords from the user's request (e.g. ['legal', 'contract'] for 'help with contracts'). Omit for a generic recommendation from the not-yet-enabled catalog."
+                    },
+                    context_label: {
+                        type: "string",
+                        description: "Short header tying the suggestion to what the user asked about, e.g. 'For your legal work'. Omit for a generic recommendation (defaults to 'Skills you can add')."
+                    }
+                },
+                required: []
+            }
+        }],
+        handleToolCall: async (e, r, t) => {
+            if (e === "suggest_skills") {
+                const {
+                    keywords: u,
+                    context_label: p
+                } = r, f = (await Y.searchAddableSkills(t.sessionId, u)).filter(P => !!P.name).slice(0, 15).map(P => ({
+                    name: P.name,
+                    description: P.description,
+                    skill_id: P.skillId,
+                    is_user_created: P.isUserCreated
+                })), _ = t.pluginsEnabled !== !1, A = _ ? " Now call search_plugins with the same keywords — if it returns relevant matches, render them via suggest_plugin_install so both cards stack." : "", v = _ ? "No addable standalone skills matched — the widget did not render. Now call search_plugins with the same keywords (relevant skills may live inside an uninstalled plugin); render matches via suggest_plugin_install. If the user already has matching skills installed, also call list_skills so they render as a Try-it card (do NOT list them as plain text). In your follow-up after the card(s), explicitly tell the user you searched for new skills to add but didn't find any beyond what's already installed. Don't re-list the card's skill names inline." : "No addable standalone skills matched — the widget did not render. If the user already has matching skills installed, call list_skills so they render as a Try-it card (do NOT list them as plain text). In your follow-up, explicitly tell the user you searched for new skills to add but didn't find any beyond what's already installed.";
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            resolved_skills: f,
+                            context_label: p,
+                            note: f.length > 0 ? `Skills widget rendered above with Add buttons. Skip re-listing in text.${A}` : v
+                        })
+                    }]
+                }
+            }
+            const {
+                skill_names: o,
+                keywords: i,
+                context_label: s
+            } = r, [a, l] = await Promise.all([Y.resolveSlashMenuSkills(t.sessionId, o, i), Y.listInstalledPluginsForWidget(t.sessionId, void 0)]);
+            let c = [];
+            try {
+                const {
+                    results: u
+                } = JSON.parse(l);
+                c = u.map(p => p.name)
+            } catch {}
+            let d;
+            return a.length > 0 ? d = "Skills widget rendered above with the listed skills. Any lead-in goes before this call; skip re-listing them in text." : c.length > 0 ? d = `No slash-menu skills matched the requested names — the widget did not render. The user has these plugins installed: ${c.join(", ")}. Call list_skills again with no skill_names to surface their skills.` : d = "No installed skills matched — the widget did not render.", {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        resolved_skills: a,
+                        installed_plugins: c,
+                        context_label: s,
+                        note: d,
+                        request_skill_names: o ?? [],
+                        request_keywords: i ?? []
+                    })
+                }]
+            }
+        },
+        isEnabled: e => e.sessionType === "cowork" && e.skillsEnabled !== !1
+    };
+
+function Vs() {
+    return {
+        ...mt,
+        tools: mt.tools.filter(e => e.name !== "suggest_skills").map(e => e.name === "list_skills" ? {
+            ...e,
+            description: e.description.replace(" — fall back to suggest_skills", "").replace(`
+
+To recommend skills the user does NOT have yet, use suggest_skills instead.`, "")
+        } : e)
+    }
+}
+const Js = {
+        serverName: Hr,
+        tools: [{
+            name: "show_onboarding_role_picker",
+            description: `Render a clickable role-picker chip row during Cowork onboarding. Call this when asking the user what kind of work they do so they can pick their role and get a matching plugin installed. The role list is hardcoded in the frontend — call with no args.
+
+The call blocks until the user responds. Three resolution paths all land in the tool result: chip click or free-form typed answer → {"role": "Legal"} or {"role": "paralegal"}; X button → {"dismissed": true}. Free-form roles may not match the chip list — search the marketplace with whatever string you get.
+
+Do NOT call this in normal conversation. Only call this when explicitly helping the user set up Cowork for their role/job function.`,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    role: {
+                        type: "string",
+                        description: "Populated by the permission flow with the user's chip selection. Do not set this yourself."
+                    },
+                    dismissed: {
+                        type: "boolean",
+                        description: "Populated by the permission flow when the user closes the panel without picking. Do not set this yourself."
+                    }
+                },
+                required: []
+            }
+        }],
+        handleToolCall: async (e, r) => ({
+            content: [{
+                type: "text",
+                text: JSON.stringify(r)
+            }]
+        }),
+        isEnabled: e => e.sessionType === "cowork" && n.isFeatureEnabled("2114777685")
+    },
+    Wr = "dev-debug",
+    Xs = [Fe, Br, kt, Hr, Ue, Ur, Wr, X, bt, Tt],
+    Qs = [Hs, Ks, Ys, mt, Js, {
+        serverName: Wr,
+        tools: [{
+            name: "get_roots",
+            description: "Returns the file roots advertised to MCP servers in this session. Useful for verifying that the working directory (CCD) or user-selected folders (cowork) are correctly exposed.",
+            inputSchema: {
+                type: "object",
+                properties: {}
+            }
+        }],
+        handleToolCall: async () => {
+            const e = await G.LocalMcpServerManager.getSharedInstance().getCurrentRoots();
+            if (e.length === 0) return {
+                content: [{
+                    type: "text",
+                    text: "No roots available. No folders have been selected for this session."
+                }]
+            };
+            const r = e.map(t => `• ${t.uri}${t.name?` (${t.name})`:""}`);
+            return {
+                content: [{
+                    type: "text",
+                    text: `Available file roots (${e.length}):
+${r.join(`
+`)}`
+                }]
+            }
+        },
+        isEnabled: () => !1
+    }];
+async function Zs(e, r = !1, t) {
+    await n.refreshInstalledMap(!0);
+    const o = St(e, t),
+        i = Qs.map(s => o && s.serverName === n.SERVER_NAME$1 ? {
+            ...s,
+            tools: s.tools.map(a => ({
+                ...a,
+                alwaysLoad: !0
+            })),
+            getDynamicTools: s.getDynamicTools ? () => s.getDynamicTools().map(a => ({
+                ...a,
+                alwaysLoad: !0
+            })) : void 0
+        } : !r && s.serverName === kt ? Vs() : s);
+    n.isCuSupportedPlatform() && i.push(await gs(e, t));
+    try {
+        const {
+            getImagineServerDef: s
+        } = await Promise.resolve().then(() => require("./index.chunk-DZXOKsI2.js"));
+        i.push(s())
+    } catch {}
+    i.push(Es()), i.push({
+        serverName: Ue,
+        tools: co().map(s => ({
+            name: s.name,
+            description: s.description ?? "",
+            inputSchema: s.inputSchema,
+            alwaysLoad: !0
+        })),
+        handleToolCall: (s, a, l) => vo(s, a, l.sessionCwd ?? "", l.sessionId, l.onBrowserPermissionRequest ? async (c, d, u) => {
+            const p = Object.fromEntries(Object.entries(u).filter(([, f]) => f !== void 0));
+            return (await l.onBrowserPermissionRequest({
+                toolUseId: "",
+                requestId: `preview-cat3-${Date.now()}`,
+                toolType: u.action ?? d,
+                url: c,
+                actionData: {
+                    ...p,
+                    _perActionOnly: !0
+                }
+            })).allowed
+        }: void 0),
+        isEnabled: s => n.isLaunchToolingEnabled() && s.sessionType === "ccd" && !s.isSSH && n.getAppPreference("launchEnabled") !== !1
+    }), i.push({
+        serverName: vr,
+        tools: xn(),
+        handleToolCall: async (s, a, l) => ({
+            content: [{
+                type: "text",
+                text: "Framebuffer preview unavailable."
+            }],
+            isError: !0
+        }),
+        isEnabled: s => !1
+    }), i.push(Us()), i.push(Ps()), i.push(vi());
+    try {
+        const {
+            getTerminalServerDef: s
+        } = await Promise.resolve().then(() => require("./index.chunk-BoaAXvf0.js"));
+        i.push(s())
+    } catch {}
+    return i
+}
+const ea = "mcp-registry-internal";
+class ta {
+    constructor() {
+        this.enabledServerNames = new Set, this.serversGeneration = 0
+    }
+    async createProxyServers(r, t, o) {
+        var l;
+        const i = {},
+            s = await Zs(r.model, r.suggestSkillsEnabled, r.sessionType),
+            a = St(r.model, r.sessionType);
+        this.resolvedServers = s, this.enabledServerNames.clear();
+        for (const c of s) {
+            if (!c.isEnabled(r)) {
+                n.logger.debug(`[InternalMcpServerManager] Server ${c.serverName} not enabled, skipping`);
+                continue
+            }
+            const d = [...c.tools, ...((l = c.getDynamicTools) == null ? void 0 : l.call(c)) ?? []],
+                u = t ? d.filter(f => {
+                    const _ = `local:${c.serverName}:${f.name}`;
+                    return t[_] !== !1
+                }) : d;
+            if (u.length === 0) {
+                n.logger.debug(`[InternalMcpServerManager] Server ${c.serverName} has no enabled tools, skipping`);
+                continue
+            }
+            const p = u.map(f => ce.tool(f.name, f.description, G.jsonSchemaToZodShape(f.inputSchema), async _ => {
+                    var g, w;
+                    n.logger.debug("[InternalMcpServerManager] Proxying tool call %o", {
+                        server: c.serverName,
+                        tool: f.name
+                    });
+                    const A = Date.now(),
+                        v = {
+                            session_id: r.sessionId,
+                            session_type: r.sessionType,
+                            user_message_uuid: (g = r.getMessageUuid) == null ? void 0 : g.call(r),
+                            cic_can_use_tool: r.cicCanUseToolEnabled
+                        },
+                        P = 3e5;
+                    let y;
+                    const m = new Promise(C => {
+                        y = setTimeout(() => {
+                            n.logCoworkEvent("lam_mcp_tool_call_stalled", {
+                                ...v,
+                                server_name: c.serverName,
+                                server_type: "internal",
+                                server_uuid: n.INTERNAL_SERVER_UUIDS[c.serverName],
+                                tool_name: `internal__${c.serverName}__${f.name}`,
+                                seconds_waiting: 300
+                            }), C({
+                                content: [{
+                                    type: "text",
+                                    text: `${f.name} timed out after ${P/1e3}s. The underlying operation (browser extension, CDP, Apple Events) may be stuck or unresponsive.`
+                                }],
+                                isError: !0
+                            })
+                        }, P)
+                    });
+                    try {
+                        const C = await Promise.race([c.handleToolCall(f.name, _, r, o), m]),
+                            b = Date.now() - A,
+                            E = ((w = C._meta) == null ? void 0 : w.isBridgeTimeout) === !0 ? "bridge_timeout" : b >= P && C.isError ? "timeout" : void 0;
+                        return n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                            server_name: c.serverName,
+                            server_type: "internal",
+                            server_uuid: n.INTERNAL_SERVER_UUIDS[c.serverName],
+                            tool_name: `internal__${c.serverName}__${f.name}`,
+                            is_error: C.isError ?? !1,
+                            duration_ms: b,
+                            ...E !== void 0 && {
+                                error_type: E
+                            },
+                            internal_server_name: c.serverName,
+                            ...v
+                        }), C
+                    } catch (C) {
+                        throw n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                            server_name: c.serverName,
+                            server_type: "internal",
+                            server_uuid: n.INTERNAL_SERVER_UUIDS[c.serverName],
+                            tool_name: `internal__${c.serverName}__${f.name}`,
+                            is_error: !0,
+                            duration_ms: Date.now() - A,
+                            internal_server_name: c.serverName,
+                            ...v
+                        }), C
+                    } finally {
+                        y && clearTimeout(y)
+                    }
+                }, f.alwaysLoad ? {
+                    alwaysLoad: !0
+                } : void 0)),
+                h = c.serverName;
+            i[h] = ce.createSdkMcpServer({
+                name: h,
+                version: "1.0.0",
+                tools: p
+            }), this.enabledServerNames.add(c.serverName), n.logCoworkEvent("lam_internal_mcp_server_created", {
+                server_name: c.serverName,
+                server_uuid: n.INTERNAL_SERVER_UUIDS[c.serverName],
+                tool_count: p.length,
+                session_type: r.sessionType,
+                chrome_cu_inlined: a
+            }), n.logger.debug("[InternalMcpServerManager] Created proxy server %o", {
+                server: h,
+                toolCount: p.length
+            })
+        }
+        return this.serversGeneration++, i
+    }
+    getServersGeneration() {
+        return this.serversGeneration
+    }
+    hasServer(r) {
+        var t;
+        return ((t = this.resolvedServers) == null ? void 0 : t.some(o => o.serverName === r)) ?? !1
+    }
+    listResolvedServerNames() {
+        var r;
+        return ((r = this.resolvedServers) == null ? void 0 : r.map(t => t.serverName)) ?? []
+    }
+    readResource(r, t) {
+        var i;
+        const o = (i = this.resolvedServers) == null ? void 0 : i.find(s => s.serverName === r);
+        if (!(o != null && o.handleReadResource)) throw new Error(`Internal server "${r}" does not support resource reads`);
+        return o.handleReadResource(t)
+    }
+    listResources(r) {
+        var o;
+        const t = (o = this.resolvedServers) == null ? void 0 : o.find(i => i.serverName === r);
+        if (!(t != null && t.handleListResources)) throw new Error(`Internal server "${r}" does not support resource listing`);
+        return t.handleListResources()
+    }
+    getAppServersInfo() {
+        return this.resolvedServers ? this.resolvedServers.filter(r => this.enabledServerNames.has(r.serverName)).map(r => {
+            var t;
+            return {
+                name: r.serverName,
+                tools: [...r.tools, ...((t = r.getDynamicTools) == null ? void 0 : t.call(r)) ?? []].map(o => ({
+                    name: o.name,
+                    description: o.description,
+                    inputSchema: o.inputSchema,
+                    _meta: o._meta
+                }))
+            }
+        }) : []
+    }
+}
+const Gr = new n.Server({
+    name: Fe,
+    version: "1.0.0"
+}, {
+    capabilities: {
+        tools: {}
+    }
+});
+Gr.setRequestHandler(n.ListToolsRequestSchema, async () => ({
+    tools: []
+}));
+n.registerInternalMcpServer(Fe, ea, () => Gr);
+const ra = {
+    ccd: "ClaudeCodeDesktop",
+    cowork: "Cowork"
+};
+class na {
+    constructor() {
+        this.toolsByServerUuid = new Map
+    }
+    createProxyServers(r, t, o, i, s) {
+        const a = {};
+        n.noteRegistryServerUuids(o.map(l => l.uuid));
+        for (const l of o) {
+            this.toolsByServerUuid.set(l.uuid, l.tools);
+            const d = (i ? l.tools.filter(u => i[`${l.uuid}:${u.name}`] !== !1) : l.tools).filter(G.isToolVisibleToModel);
+            if (d.length) try {
+                const u = new xr({
+                        name: l.name,
+                        version: "1.0.0"
+                    }, {
+                        capabilities: {
+                            tools: {}
+                        },
+                        instructions: l.instructions
+                    }),
+                    p = d.map(f => ({
+                        name: f.name,
+                        description: f.description ?? f.name,
+                        inputSchema: f.inputSchema ?? {
+                            type: "object"
+                        },
+                        ...f._meta != null && {
+                            _meta: f._meta
+                        },
+                        ...f.annotations != null && {
+                            annotations: f.annotations
+                        }
+                    })),
+                    h = new Set(p.map(f => f.name));
+                u.server.setRequestHandler(n.ListToolsRequestSchema, async () => ({
+                    tools: p
+                })), u.server.setRequestHandler(n.CallToolRequestSchema, async f => {
+                    const {
+                        name: _,
+                        arguments: A
+                    } = f.params;
+                    return h.has(_) ? this.proxyToolCall(r, t, l.uuid, _, A ?? {}, s) : {
+                        content: [{
+                            type: "text",
+                            text: `Tool '${_}' is not permitted`
+                        }],
+                        isError: !0
+                    }
+                }), a[l.uuid] = {
+                    type: "sdk",
+                    name: l.name,
+                    instance: u
+                }
+            } catch (u) {
+                n.logger.error(`[ProxyMcpServerManager] Failed to create proxy server for ${l.name}`, u)
+            }
+        }
+        return a
+    }
+    findTool(r, t) {
+        var o;
+        return (o = this.toolsByServerUuid.get(r)) == null ? void 0 : o.find(i => i.name === t)
+    }
+    async proxyToolCall(r, t, o, i, s, a) {
+        var v, P;
+        const l = Date.now(),
+            c = {
+                session_id: r,
+                session_type: t,
+                user_message_uuid: a == null ? void 0 : a()
+            },
+            d = await n.getLastActiveOrg();
+        if (!d) return n.logger.error("Cannot execute remote tool call: no active organization", {
+            serverUuid: o,
+            toolName: i
+        }), n.logCoworkEvent("lam_mcp_tool_call_completed", {
+            server_name: o,
+            server_type: "remote",
+            tool_name: `mcp__${o}__${i}`,
+            is_error: !0,
+            duration_ms: Date.now() - l,
+            error_type: "no_active_org",
+            ...c
+        }), {
+            content: [{
+                type: "text",
+                text: "No active organization"
+            }],
+            isError: !0
+        };
+        const u = `${n.claudeAiUrl()}/api/organizations/${d}/mcp/servers/${encodeURIComponent(o)}/tools/call`,
+            p = new AbortController,
+            h = n.getMcpToolTimeout(),
+            f = setTimeout(() => p.abort(), h);
+        n.logger.info(`Making remote MCP tool call: ${i}`);
+        let _, A;
+        try {
+            const y = await K.net.fetch(u, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-mcp-client-name": ra[t]
+                },
+                body: JSON.stringify({
+                    tool_name: i,
+                    arguments: s
+                }),
+                signal: p.signal
+            });
+            if (_ = y.headers.get("request-id") ?? void 0, !y.ok) {
+                const T = await y.text();
+                n.logger.error("Remote tool call failed %o", {
+                    serverUuid: o,
+                    toolName: i,
+                    status: y.status,
+                    errorText: T,
+                    url: u
+                });
+                let k;
+                try {
+                    const S = JSON.parse(T),
+                        R = (P = (v = S == null ? void 0 : S.error) == null ? void 0 : v.details) == null ? void 0 : P.error_code;
+                    k = typeof R == "string" ? R : void 0
+                } catch {}
+                return n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                    server_name: o,
+                    server_type: "remote",
+                    tool_name: `mcp__${o}__${i}`,
+                    is_error: !0,
+                    duration_ms: Date.now() - l,
+                    error_type: "http_error",
+                    http_status: y.status,
+                    error_code: k,
+                    request_id: _,
+                    result_byte_size: Buffer.byteLength(T, "utf-8"),
+                    ...c
+                }), {
+                    content: [{
+                        type: "text",
+                        text: `Tool call failed: ${y.status} ${y.statusText}`
+                    }],
+                    isError: !0
+                }
+            }
+            A = await y.text();
+            const m = JSON.parse(A);
+            n.logger.info(`Remote tool call succeeded: ${i}`);
+            const g = m.structured_content ?? m.structuredContent,
+                w = m.meta ?? m._meta,
+                C = typeof(w == null ? void 0 : w.anthropic_error_code) == "string" ? w.anthropic_error_code : void 0,
+                b = m.is_error ?? !1;
+            return n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                server_name: o,
+                server_type: "remote",
+                tool_name: `mcp__${o}__${i}`,
+                is_error: b,
+                duration_ms: Date.now() - l,
+                http_status: y.status,
+                error_code: C,
+                request_id: _,
+                result_byte_size: Buffer.byteLength(A, "utf-8"),
+                ...c
+            }), g != null && (!Array.isArray(m.content) || m.content.length === 0) ? {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify(g)
+                }],
+                structuredContent: g,
+                ...w != null && {
+                    _meta: w
+                },
+                isError: b
+            } : !("content" in m) && "toolResult" in m ? {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify(m.toolResult, null, 2)
+                }],
+                ...w != null && {
+                    _meta: w
+                },
+                isError: b
+            } : {
+                content: (m.content ?? [{
+                    type: "text",
+                    text: JSON.stringify(m)
+                }]).map(T => {
+                    var k;
+                    if (T.type === "text") return {
+                        type: "text",
+                        text: T.text ?? ""
+                    };
+                    if (T.type === "image") return T.data ? {
+                        type: "image",
+                        data: T.data,
+                        mimeType: T.mimeType ?? "image/png"
+                    } : (n.logger.warn(`[ProxyMcpServerManager] Remote MCP tool ${i} returned image content with no data`, {
+                        serverUuid: o,
+                        mimeType: T.mimeType
+                    }), {
+                        type: "text",
+                        text: `[${i} returned an image but the image data was empty]`
+                    });
+                    if (T.type === "resource" && T.resource) {
+                        if ("text" in T.resource && T.resource.text) return {
+                            type: "text",
+                            text: T.resource.text
+                        };
+                        if ("blob" in T.resource && T.resource.blob && ((k = T.resource.mimeType) != null && k.startsWith("image/"))) return {
+                            type: "image",
+                            data: T.resource.blob,
+                            mimeType: T.resource.mimeType
+                        };
+                        const {
+                            blob: S,
+                            ...R
+                        } = T.resource;
+                        return {
+                            type: "resource",
+                            resource: R
+                        }
+                    } else return n.logger.warn(`[ProxyMcpServerManager] Unknown content type: ${T.type}`, {
+                        content: T
+                    }), {
+                        type: "text",
+                        text: JSON.stringify(T)
+                    }
+                }),
+                ...g != null && {
+                    structuredContent: g
+                },
+                ...w != null && {
+                    _meta: w
+                },
+                isError: b
+            }
+        } catch (y) {
+            return y instanceof Error && y.name === "AbortError" ? (n.logger.error("Remote tool call timed out", {
+                serverUuid: o,
+                toolName: i,
+                timeoutMs: h
+            }), n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                server_name: o,
+                server_type: "remote",
+                tool_name: `mcp__${o}__${i}`,
+                is_error: !0,
+                duration_ms: Date.now() - l,
+                error_type: "timeout",
+                request_id: _,
+                result_byte_size: A !== void 0 ? Buffer.byteLength(A, "utf-8") : void 0,
+                ...c
+            }), {
+                content: [{
+                    type: "text",
+                    text: "Tool call timed out waiting for server response."
+                }],
+                isError: !0
+            }) : (n.logger.error("Remote tool call error", {
+                serverUuid: o,
+                toolName: i,
+                error: y
+            }), n.logCoworkEvent("lam_mcp_tool_call_completed", {
+                server_name: o,
+                server_type: "remote",
+                tool_name: `mcp__${o}__${i}`,
+                is_error: !0,
+                duration_ms: Date.now() - l,
+                error_type: "network_error",
+                request_id: _,
+                result_byte_size: A !== void 0 ? Buffer.byteLength(A, "utf-8") : void 0,
+                ...c
+            }), {
+                content: [{
+                    type: "text",
+                    text: `Error: ${y instanceof Error?y.message:"Unknown error"}`
+                }],
+                isError: !0
+            })
+        } finally {
+            clearTimeout(f)
+        }
+    }
+    async callTool(r, t, o, i, s) {
+        return this.proxyToolCall(r, t, o, i, s)
+    }
+    async readResource(r, t) {
+        const o = await n.getLastActiveOrg();
+        if (!o) return n.logger.error("Cannot read resource: no active organization", {
+            serverUuid: r,
+            uri: t
+        }), {
+            contents: []
+        };
+        const i = `${n.claudeAiUrl()}/api/organizations/${o}/mcp/servers/${encodeURIComponent(r)}/resources/read`,
+            s = new AbortController,
+            a = setTimeout(() => s.abort(), n.getMcpToolTimeout());
+        try {
+            const l = await K.net.fetch(i, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    uri: t
+                }),
+                signal: s.signal
+            });
+            if (!l.ok) {
+                const d = await l.text();
+                return n.logger.error("Resource read failed", {
+                    serverUuid: r,
+                    uri: t,
+                    status: l.status,
+                    errorText: d
+                }), {
+                    contents: []
+                }
+            }
+            return {
+                contents: (await l.json()).contents ?? []
+            }
+        } catch (l) {
+            return n.logger.error("Resource read error", {
+                serverUuid: r,
+                uri: t,
+                error: l
+            }), {
+                contents: []
+            }
+        } finally {
+            clearTimeout(a)
+        }
+    }
+    async listResources(r) {
+        const t = await n.getLastActiveOrg();
+        if (!t) return n.logger.error("Cannot list resources: no active organization", {
+            serverUuid: r
+        }), [];
+        const o = `${n.claudeAiUrl()}/api/organizations/${t}/mcp/servers/${encodeURIComponent(r)}/resources/list`,
+            i = new AbortController,
+            s = setTimeout(() => i.abort(), n.getMcpToolTimeout());
+        try {
+            const a = await K.net.fetch(o, {
+                method: "GET",
+                signal: i.signal
+            });
+            if (!a.ok) {
+                const c = await a.text();
+                return n.logger.error("Resource list failed", {
+                    serverUuid: r,
+                    status: a.status,
+                    errorText: c
+                }), []
+            }
+            return (await a.json()).resources ?? []
+        } catch (a) {
+            return n.logger.error("Resource list error", {
+                serverUuid: r,
+                error: a
+            }), []
+        } finally {
+            clearTimeout(s)
+        }
+    }
+}
+const fr = "ant.dir.ant.anthropic.filesystem";
+
+function Se() {
+    var r;
+    const e = n.getManagedConfig();
+    return {
+        managedMcpServers: e.mcp.managedServers,
+        orgPluginSettings: (r = e.plugins) == null ? void 0 : r.settings
+    }
+}
+
+function ft(e) {
+    return e.type === "local" || n.listInternalMcpServers().includes(e.name) ? e.name : e.uuid
+}
+
+function gt(e, r) {
+    if (!r) return !1;
+    const t = `${e}:`,
+        o = Object.entries(r).filter(([i]) => i.startsWith(t));
+    return o.length === 0 ? !1 : o.every(([, i]) => i === !1)
+}
+
+function oa(e, r, t) {
+    const o = `${e}:`,
+        i = new Set;
+    for (const s of Object.keys(r ?? {})) s.startsWith(o) && i.add(s);
+    for (const s of Object.keys(t)) s.startsWith(o) && i.add(s);
+    for (const s of i) {
+        const a = (r == null ? void 0 : r[s]) !== !1,
+            l = t[s] !== !1;
+        if (a !== l) return !0
+    }
+    return !1
+}
+
+function ia(e) {
+    const {
+        previousEnabledMcpTools: r,
+        newEnabledMcpTools: t,
+        localServerNames: o,
+        remoteServers: i,
+        internalServerNames: s,
+        currentActiveServerKeys: a
+    } = e, l = {
+        toCreate: {
+            local: [],
+            remote: [],
+            internal: []
+        },
+        toDelete: []
+    }, c = (d, u) => {
+        const p = gt(u, r),
+            h = gt(u, t);
+        return p && !h ? "create" : !p && h ? "delete" : !h && !a.has(d) || !h && oa(u, r, t) ? "create" : "noop"
+    };
+    for (const d of o) {
+        const u = c(d, `local:${d}`);
+        u === "create" ? l.toCreate.local.push(d) : u === "delete" && l.toDelete.push({
+            key: d,
+            name: d
+        })
+    }
+    for (const d of i) {
+        const u = c(d.uuid, d.uuid);
+        u === "create" ? l.toCreate.remote.push(d) : u === "delete" && l.toDelete.push({
+            key: d.uuid,
+            name: d.name
+        })
+    }
+    for (const d of s) {
+        const u = c(d, `local:${d}`);
+        u === "create" ? l.toCreate.internal.push(d) : u === "delete" && l.toDelete.push({
+            key: d,
+            name: d
+        })
+    }
+    return l
+}
+class sa {
+    constructor(r) {
+        this.isolationExemptBySession = new Map, this.sessionType = r, this.proxyManager = new na, this.internalManager = new ta, this.localMcpManager = G.LocalMcpServerManager.getSharedInstance()
+    }
+    buildInternalServerContext(r, t, o) {
+        return {
+            sessionId: r,
+            sessionType: this.sessionType,
+            sessionCwd: t.sessionCwd,
+            model: t.model,
+            isSSH: t.sshController != null,
+            skillsEnabled: t.skillsEnabled,
+            pluginsEnabled: t.pluginsEnabled,
+            suggestSkillsEnabled: t.suggestSkillsEnabled,
+            cicCanUseToolEnabled: t.cicCanUseToolEnabled,
+            consumeCicOnceApproved: t.consumeCicOnceApproved,
+            onBrowserPermissionRequest: t.onBrowserPermissionRequest,
+            getChromePermissionMode: t.getChromePermissionMode,
+            getChromeAllowedDomains: t.getChromeAllowedDomains,
+            getSdkPermissionMode: t.getSdkPermissionMode,
+            isUnattendedSession: t.isUnattendedSession,
+            onChromePermissionUpdated: t.onChromePermissionUpdated,
+            getChromeTabGroupId: t.getChromeTabGroupId,
+            onChromeTabGroupIdUpdated: t.onChromeTabGroupIdUpdated,
+            persistScreenshotForDispatch: t.persistScreenshotForDispatch,
+            getSessionTitle: t.getSessionTitle,
+            getSpSectionPrompts: t.getSpSectionPrompts,
+            getCuAllowedApps: t.getCuAllowedApps,
+            getCuGrantFlags: t.getCuGrantFlags,
+            getCuLastScreenshotDims: t.getCuLastScreenshotDims,
+            onComputerUsePermissionRequest: t.onComputerUsePermissionRequest,
+            onCuPermissionUpdated: t.onCuPermissionUpdated,
+            getCuSelectedDisplayId: t.getCuSelectedDisplayId,
+            onCuSelectedDisplayUpdated: t.onCuSelectedDisplayUpdated,
+            getCuDisplayPinnedByModel: t.getCuDisplayPinnedByModel,
+            onCuDisplayPinned: t.onCuDisplayPinned,
+            getCuDisplayResolvedForApps: t.getCuDisplayResolvedForApps,
+            onCuDisplayResolvedForApps: t.onCuDisplayResolvedForApps,
+            onCuScreenshotDimsUpdated: t.onCuScreenshotDimsUpdated,
+            onAppsHidden: t.onAppsHidden,
+            getClipboardStash: t.getClipboardStash,
+            onClipboardStashChanged: t.onClipboardStashChanged,
+            checkCuLock: t.checkCuLock,
+            checkCuExclusiveLock: t.checkCuExclusiveLock,
+            acquireCuLock: t.acquireCuLock,
+            checkCuAppLock: t.checkCuAppLock,
+            acquireCuAppLock: t.acquireCuAppLock,
+            consumeCuCollisionEvicted: t.consumeCuCollisionEvicted,
+            releaseCuAppLock: t.releaseCuAppLock,
+            withCuAppWriteMutex: t.withCuAppWriteMutex,
+            needsCuTakeoverConsent: t.needsCuTakeoverConsent,
+            approveCuTakeover: t.approveCuTakeover,
+            isCuTakeoverApproved: t.isCuTakeoverApproved,
+            getCuAppLockHeld: t.getCuAppLockHeld,
+            isAborted: t.isAborted,
+            onComputerUseTeachPermissionRequest: t.onComputerUseTeachPermissionRequest,
+            onTeachModeActivated: t.onTeachModeActivated,
+            onTeachStep: t.onTeachStep,
+            onTeachWorking: t.onTeachWorking,
+            getTeachModeActive: t.getTeachModeActive,
+            getMessageUuid: o,
+            addDirectories: t.addDirectories,
+            getPermissionMode: t.getPermissionMode
+        }
+    }
+    createRemoteServers(r, t) {
+        var s, a;
+        const o = n.getDeploymentMode();
+        o.syncUserToolToggles(t.enabledMcpTools ?? {}), (s = t.remoteMcpServers) != null && s.length && (t = {
+            ...t,
+            remoteMcpServers: G.filterServersCollidingWithInternalServerNames(t.remoteMcpServers, "createRemoteServers")
+        });
+        const i = o.directMcpServers();
+        return i != null ? os([...i, ...o.parkedServersWithCachedTools()], r, this.sessionType, t.enabledMcpTools, t.getMessageUuid, (l, c) => o.isToolUserDisabled(l, c), l => Ie(n.getDeploymentMode(), l)) : (a = t.remoteMcpServers) != null && a.length ? this.proxyManager.createProxyServers(r, this.sessionType, t.remoteMcpServers, t.enabledMcpTools, t.getMessageUuid ?? (() => {})) : {}
+    }
+    async createAllServers(r, t) {
+        const o = Date.now(),
+            i = t.mcpServers ?? {},
+            s = Object.keys(i).length,
+            a = Object.fromEntries(Object.entries(i).filter(([g, w]) => {
+                if (t.filterFilesystemMcp && w.extensionId === fr) return !1;
+                const b = n.isFeatureEnabled("2246535838") ? `local:${g}` : g;
+                return gt(b, t.enabledMcpTools) ? (n.logger.info(`Filtering out local MCP server "${g}" (extension: ${w.extensionId}) — all tools disabled`), !1) : !0
+            })),
+            l = s - Object.keys(a).length,
+            c = Object.keys(a).filter(G.collidesWithInternalServerName).length,
+            d = (t.remoteMcpServers ?? []).filter(g => G.collidesWithInternalServerName(g)).length,
+            u = this.createRemoteServers(r, t),
+            p = c + d,
+            h = {
+                sessionId: r,
+                sessionType: this.sessionType,
+                getMessageUuid: t.getMessageUuid ?? (() => {})
+            },
+            f = a,
+            [_, A] = await Promise.all([this.createStdioProxyServers(f, t, h), this.internalManager.createProxyServers(this.buildInternalServerContext(r, t, h.getMessageUuid), t.enabledMcpTools, t.vmPathContext)]),
+            v = {
+                ...u,
+                ...A,
+                ..._
+            };
+        this.isolationExemptBySession.set(r, Object.keys(A).filter(g => Xs.includes(g) && !(g in _) && !(g in u)));
+        const P = Object.keys(_).length,
+            y = Object.keys(u).length,
+            m = Object.keys(A).length;
+        return n.logCoworkEvent("lam_mcp_servers_setup_summary", {
+            session_id: r,
+            session_type: this.sessionType,
+            local_server_count: P,
+            remote_server_count: y,
+            internal_server_count: m,
+            total_server_count: P + y + m,
+            local_servers_filtered: l,
+            reserved_names_dropped: p,
+            duration_ms: Date.now() - o
+        }), v
+    }
+    async reconcileServers(r, t, o, i) {
+        var u;
+        const s = {
+            ...o
+        };
+        for (const {
+                key: p
+            }
+            of t.toDelete) delete s[p];
+        const a = i.getMessageUuid ?? (() => {}),
+            l = {
+                sessionId: r,
+                sessionType: this.sessionType,
+                getMessageUuid: a
+            };
+        if (t.toCreate.remote.length > 0) {
+            const p = G.filterServersCollidingWithInternalServerNames(t.toCreate.remote, "reconcileServers"),
+                h = this.proxyManager.createProxyServers(r, this.sessionType, p, i.enabledMcpTools, a);
+            Object.assign(s, h)
+        }
+        if (t.toCreate.local.length > 0) {
+            const p = {};
+            for (const f of t.toCreate.local) {
+                const _ = (u = i.mcpServers) == null ? void 0 : u[f];
+                if (!_) {
+                    n.logger.warn(`[reconcileServers] Local server "${f}" in diff but missing from mcpServers config`);
+                    continue
+                }
+                i.filterFilesystemMcp && _.extensionId === fr || (p[f] = _)
+            }
+            const h = await this.createStdioProxyServers(p, i, l);
+            Object.assign(s, h)
+        }
+        if (t.toCreate.internal.length > 0) {
+            const p = await this.internalManager.createProxyServers(this.buildInternalServerContext(r, i, a), i.enabledMcpTools, i.vmPathContext);
+            for (const h of t.toCreate.internal) p[h] && (s[h] = p[h])
+        }
+        const c = t.toDelete.map(p => p.name),
+            d = [...t.toCreate.local.map(p => `${p} (local)`), ...t.toCreate.remote.map(p => `${p.name} (remote)`), ...t.toCreate.internal.map(p => `${p} (internal)`)];
+        return n.logger.info(`[reconcileServers] deleted=[${c.join(", ")}] created=[${d.join(", ")}] total=${Object.keys(s).length}`), s
+    }
+    async createMcpServer(r, t, o) {
+        const s = n.listInternalMcpServers().includes(t.name) || this.internalManager.hasServer(t.name),
+            a = !s && t.type === "local",
+            l = !s && !a;
+        if (!s && G.collidesWithInternalServerName({
+                name: t.name,
+                uuid: ft(t)
+            })) return n.logger.warn(`[createMcpServer] Refusing to create server "${t.name}" — name or key collides with a trusted internal server prefix`), null;
+        if (l && n.getDeploymentMode().directMcpServers() != null) return null;
+        const c = ft(t),
+            d = (o == null ? void 0 : o.getMessageUuid) ?? (() => {});
+        let u = {};
+        if (s) u = await this.internalManager.createProxyServers(o ? this.buildInternalServerContext(r, o, d) : {
+            sessionId: r,
+            sessionType: this.sessionType,
+            getMessageUuid: d
+        }, void 0, o == null ? void 0 : o.vmPathContext);
+        else if (a) {
+            const h = (await n.getMcpServersConfig())[t.name];
+            if (!h) return n.logger.warn(`[createMcpServer] No config for local server "${t.name}"`), null;
+            u = await this.createStdioProxyServers({
+                [t.name]: h
+            }, o ?? {}, {
+                sessionId: r,
+                sessionType: this.sessionType,
+                getMessageUuid: d
+            })
+        } else u = this.proxyManager.createProxyServers(r, this.sessionType, [{
+            uuid: t.uuid,
+            name: t.name,
+            tools: t.tools ?? []
+        }], void 0, d);
+        return u[c] ? {
+            key: c,
+            server: u[c]
+        } : null
+    }
+    async createStdioProxyServers(r, t, o) {
+        if (r = G.dropReservedNameServers(r, "local").kept, Object.keys(r).length === 0) return {};
+        if (t.sshController) {
+            const {
+                SshMcpServerManager: i
+            } = await Promise.resolve().then(() => require("./index.chunk-rfup6XOs.js"));
+            return i.getSharedInstance().createProxyServers(t.sshController, r, t.enabledMcpTools, o)
+        }
+        return this.localMcpManager.createProxyServers(r, t.enabledMcpTools, o, t.vmPathContext)
+    }
+    notifyRootsChanged() {
+        this.localMcpManager.notifyRootsChanged()
+    }
+    registerRootsProvider(r, t) {
+        this.localMcpManager.registerRootsProvider(r, t)
+    }
+    unregisterRootsProvider(r) {
+        this.localMcpManager.unregisterRootsProvider(r), this.isolationExemptBySession.delete(r)
+    }
+    getIsolationExemptServerNames(r) {
+        return this.isolationExemptBySession.get(r) ?? []
+    }
+    async closeAll() {
+        await this.localMcpManager.closeAll()
+    }
+    getInternalServerNamesForDiff() {
+        const r = new Set(n.listInternalMcpServers());
+        for (const t of this.internalManager.listResolvedServerNames()) r.add(t);
+        return [...r]
+    }
+    isLocalMcpServer(r) {
+        return this.localMcpManager.hasServer(r)
+    }
+    findDirectMcpConnection(r) {
+        const t = le(n.getDeploymentMode(), r);
+        switch (t.phase) {
+            case "live":
+            case "parked-with-tools":
+                return t.conn;
+            case "builtin-parked":
+                return {
+                    config: t.config, tools: n.readPersistedMcpToolSchema(t.rawName) ?? []
+                };
+            case "parked-no-tools":
+                return {
+                    config: t.config, tools: []
+                };
+            case "unknown":
+                return null;
+            default:
+                return t
+        }
+    }
+    getDirectMcpRawName(r) {
+        const t = le(n.getDeploymentMode(), r);
+        return t.phase === "unknown" ? void 0 : t.rawName
+    }
+    isDirectMcpResourceBlocked(r) {
+        return n.lookupMcpToolPolicy(n.resolveManagedToolPolicy(r.config.name, {
+            poolConfig: r.config,
+            freshConfig: Se()
+        }), "*") === "blocked"
+    }
+    async callRemoteTool(r, t, o, i, s, a) {
+        if (!(a != null && a.directOnly) && (this.isLocalMcpServer(t) || t in await n.getMcpServersConfig())) {
+            if (G.collidesWithInternalServerName(t)) return n.logger.warn(`[callRemoteTool] Refusing call to local MCP server "${t}" — name collides with a trusted internal server prefix`), {
+                content: [{
+                    type: "text",
+                    text: `Tool '${o}' is not permitted`
+                }],
+                isError: !0
+            };
+            const c = n.getDeploymentMode();
+            return c.isToolUserDisabled(t, o) || c.isToolUserDisabled(`local:${t}`, o) ? {
+                content: [{
+                    type: "text",
+                    text: `Tool '${o}' is not permitted`
+                }],
+                isError: !0
+            } : this.localMcpManager.callTool(t, o, i)
+        }
+        let l;
+        try {
+            l = await Ie(n.getDeploymentMode(), t)
+        } catch (c) {
+            return dt(c)
+        }
+        if (l) {
+            const c = n.lookupMcpToolPolicy(n.resolveManagedToolPolicy(l.config.name, {
+                poolConfig: l.config,
+                freshConfig: Se()
+            }), o);
+            if (c === "blocked" || n.getDeploymentMode().isToolUserDisabled(l.config.name, o)) return {
+                content: [{
+                    type: "text",
+                    text: `Tool '${o}' is not permitted`
+                }],
+                isError: !0
+            };
+            let d = l;
+            if (c === "ask") {
+                if (!(s ? await s() : !1)) return {
+                    content: [{
+                        type: "text",
+                        text: `Tool '${o}' requires user approval for each call and was not approved`
+                    }],
+                    isError: !0
+                };
+                let f;
+                try {
+                    f = await Ie(n.getDeploymentMode(), t)
+                } catch (A) {
+                    return dt(A)
+                }
+                if (!f) return {
+                    content: [{
+                        type: "text",
+                        text: `Server '${t}' is not connected`
+                    }],
+                    isError: !0
+                };
+                if (n.lookupMcpToolPolicy(n.resolveManagedToolPolicy(f.config.name, {
+                        poolConfig: f.config,
+                        freshConfig: Se()
+                    }), o) === "blocked" || n.getDeploymentMode().isToolUserDisabled(f.config.name, o)) return {
+                    content: [{
+                        type: "text",
+                        text: `Tool '${o}' is not permitted`
+                    }],
+                    isError: !0
+                };
+                d = f
+            }
+            const u = Date.now(),
+                p = await Dr(d.client, d.config.name, d.config.transport, o, i, r, this.sessionType, void 0, async () => {
+                    const h = await Ie(n.getDeploymentMode(), t).catch(() => null) ?? l;
+                    return n.lookupMcpToolPolicy(n.resolveManagedToolPolicy(h.config.name, {
+                        poolConfig: h.config,
+                        freshConfig: Se()
+                    }), o) === "blocked" || n.getDeploymentMode().isToolUserDisabled(h.config.name, o) ? `Tool '${o}' is not permitted` : h.client
+                });
+            return ut(d.config, o, d.tools, Date.now() - u, p), p
+        }
+        return n.getDeploymentMode().directMcpServers() != null ? {
+            content: [{
+                type: "text",
+                text: `Server '${t}' is not connected`
+            }],
+            isError: !0
+        } : n.getDeploymentMode().isToolUserDisabled(t, o) ? {
+            content: [{
+                type: "text",
+                text: `Tool '${o}' is not permitted`
+            }],
+            isError: !0
+        } : this.proxyManager.callTool(r, this.sessionType, t, o, i)
+    }
+    isRemoteToolReadOnly(r, t) {
+        var i, s, a, l, c;
+        if (this.isLocalMcpServer(r)) {
+            const d = this.localMcpManager.getConnectedServersInfo().find(u => u.name === r);
+            return (s = (i = d == null ? void 0 : d.tools.find(u => u.name === t)) == null ? void 0 : i.annotations) == null ? void 0 : s.readOnlyHint
+        }
+        const o = this.findDirectMcpConnection(r);
+        if (o) {
+            const d = o.tools.find(u => u.name === t);
+            return d ? (a = d.annotations) == null ? void 0 : a.readOnlyHint : !1
+        }
+        if (n.getDeploymentMode().directMcpServers() == null) return (c = (l = this.proxyManager.findTool(r, t)) == null ? void 0 : l.annotations) == null ? void 0 : c.readOnlyHint
+    }
+    isRemoteToolDestructive(r, t) {
+        var i, s, a, l, c;
+        if (this.isLocalMcpServer(r)) {
+            const d = this.localMcpManager.getConnectedServersInfo().find(u => u.name === r);
+            return (s = (i = d == null ? void 0 : d.tools.find(u => u.name === t)) == null ? void 0 : i.annotations) == null ? void 0 : s.destructiveHint
+        }
+        const o = this.findDirectMcpConnection(r);
+        if (o) {
+            const d = o.tools.find(u => u.name === t);
+            return d ? (a = d.annotations) == null ? void 0 : a.destructiveHint : !0
+        }
+        if (n.getDeploymentMode().directMcpServers() == null) return (c = (l = this.proxyManager.findTool(r, t)) == null ? void 0 : l.annotations) == null ? void 0 : c.destructiveHint
+    }
+    async getManagedToolPolicy(r, t) {
+        if (this.isLocalMcpServer(r) || r in await n.getMcpServersConfig() || n.getDeploymentMode().directMcpServers() == null) return;
+        const o = this.findDirectMcpConnection(r);
+        return n.lookupMcpToolPolicy(n.resolveManagedToolPolicy((o == null ? void 0 : o.config.name) ?? r, {
+            poolConfig: o == null ? void 0 : o.config,
+            freshConfig: Se()
+        }), t)
+    }
+    async isRemoteToolManagedAsk(r, t) {
+        return await this.getManagedToolPolicy(r, t) === "ask"
+    }
+    async readRemoteResource(r, t, o, i) {
+        if (!(i != null && i.directOnly)) {
+            if (this.internalManager.hasServer(t)) return this.internalManager.readResource(t, o);
+            if (this.isLocalMcpServer(t)) return this.localMcpManager.readResource(t, o)
+        }
+        const s = le(n.getDeploymentMode(), t);
+        if (s.phase === "live") {
+            if (this.isDirectMcpResourceBlocked(s.conn)) return {
+                contents: []
+            };
+            try {
+                return await s.conn.client.readResource({
+                    uri: o
+                }, {
+                    timeout: ct
+                })
+            } catch (a) {
+                const l = a instanceof Error ? a.message : String(a);
+                return n.logger.error(`[custom3p-mcp] readResource failed: ${t} ${o}: ${l}`), {
+                    contents: []
+                }
+            }
+        }
+        return s.phase !== "unknown" || n.getDeploymentMode().directMcpServers() != null ? {
+            contents: []
+        } : this.proxyManager.readResource(t, o)
+    }
+    async listRemoteResources(r, t, o) {
+        if (!(o != null && o.directOnly)) {
+            if (this.internalManager.hasServer(t)) return this.internalManager.listResources(t);
+            if (this.isLocalMcpServer(t)) return this.localMcpManager.listResources(t)
+        }
+        const i = le(n.getDeploymentMode(), t);
+        if (i.phase === "live") {
+            if (this.isDirectMcpResourceBlocked(i.conn)) return [];
+            try {
+                return (await i.conn.client.listResources(void 0, {
+                    timeout: ct
+                })).resources
+            } catch (s) {
+                const a = s instanceof Error ? s.message : String(s);
+                return n.logger.error(`[custom3p-mcp] listResources failed: ${t}: ${a}`), []
+            }
+        }
+        return i.phase !== "unknown" || n.getDeploymentMode().directMcpServers() != null ? [] : this.proxyManager.listResources(t)
+    }
+    getMcpServersInfoForRenderer() {
+        const r = this.localMcpManager.getConnectionsGeneration(),
+            t = this.internalManager.getServersGeneration(),
+            o = this.rendererInfoCache;
+        if (o && o.localGen === r && o.internalGen === t) return o.info;
+        const i = this.localMcpManager.getConnectedServersInfo().map(l => ({
+                name: l.name,
+                serverSource: "user_config",
+                tools: l.tools.map(c => ({
+                    name: c.name,
+                    description: c.description,
+                    inputSchema: c.inputSchema,
+                    annotations: c.annotations,
+                    _meta: c._meta
+                }))
+            })),
+            s = this.internalManager.getAppServersInfo().map(l => ({
+                name: l.name,
+                isInternal: !0,
+                tools: l.tools.map(c => ({
+                    name: c.name,
+                    description: c.description,
+                    inputSchema: c.inputSchema,
+                    _meta: c._meta
+                }))
+            })),
+            a = [...i, ...s];
+        return this.rendererInfoCache = {
+            localGen: r,
+            internalGen: t,
+            info: a
+        }, a
+    }
+}
+class aa {
+    constructor() {
+        this.queue = [], this.resolvers = [], this.isDone = !1
+    }
+    enqueue(r) {
+        this.isDone || (this.resolvers.length > 0 ? this.resolvers.shift()({
+            value: r,
+            done: !1
+        }) : this.queue.push(r))
+    }
+    remove(r) {
+        const t = this.queue.findIndex(o => o.uuid === r);
+        return t === -1 ? !1 : (this.queue.splice(t, 1), !0)
+    }
+    hasPending() {
+        return this.queue.length > 0
+    }
+    done() {
+        this.isDone = !0;
+        for (const r of this.resolvers) r({
+            value: void 0,
+            done: !0
+        });
+        this.resolvers = []
+    } [Symbol.asyncIterator]() {
+        return {
+            next: () => this.queue.length > 0 ? Promise.resolve({
+                value: this.queue.shift(),
+                done: !1
+            }) : this.isDone ? Promise.resolve({
+                value: void 0,
+                done: !0
+            }) : new Promise(r => {
+                this.resolvers.push(r)
+            })
+        }
+    }
+}
+
+function la(e, r) {
+    e.credentialEpoch = r.epochAtStart, e.issuedCredentialIdentity = r.identityAtIssue, e.spawnedCredentialExpiresAt = r.secrets.expiresAt
+}
+
+function ca(e, r) {
+    e.issuedCredentialIdentity = r
+}
+
+function da(e) {
+    const r = n.getDeploymentMode();
+    return r.maybeRefreshBeforeTurn(e.spawnedCredentialExpiresAt) ? {
+        stale: !0,
+        reason: "expiry"
+    } : e.issuedCredentialIdentity !== r.lastIssuedCredentialIdentity() ? {
+        stale: !0,
+        reason: "identity"
+    } : e.credentialEpoch !== r.credentialEpoch() ? {
+        stale: !0,
+        reason: "epoch"
+    } : {
+        stale: !1
+    }
+}
+
+function zr(e) {
+    return Math.max(e.lastHiddenTime ?? 0, e.lastActivityTime ?? 0, e.lastResultTime ?? 0)
+}
+const ua = 900 * 1e3,
+    pa = 1e3;
+class ha {
+    constructor(r) {
+        this.sessions = new Map, this.nextWarmUpSlotAt = 0;
+        const t = r.name ?? "session";
+        this.tag = `[WarmLifecycle:${t}]`, this.config = {
+            name: t,
+            idleTimeoutMs: r.idleTimeoutMs ?? ua,
+            armOnTurnComplete: r.armOnTurnComplete ?? "when-hidden",
+            timeoutOnHidden: r.timeoutOnHidden ?? !1,
+            onDisconnect: r.onDisconnect,
+            onWarmUp: r.onWarmUp,
+            hasActiveQuery: r.hasActiveQuery,
+            onAnalyticsEvent: r.onAnalyticsEvent
+        }, n.logger.info(`${this.tag} Initialized (arm=${this.config.armOnTurnComplete})`)
+    }
+    onSpawned(r, t) {
+        la(r, t), this.registerSession(r.sessionId)
+    }
+    checkWarmReuse(r) {
+        return da(r)
+    }
+    isArmed(r) {
+        var t;
+        return ((t = this.sessions.get(r)) == null ? void 0 : t.idleTimeoutId) != null
+    }
+    markDisconnected(r) {
+        this.disarmIdle(r);
+        const t = this.sessions.get(r);
+        t && (t.hasPendingResult = !1)
+    }
+    disarmIdle(r) {
+        const t = this.sessions.get(r);
+        if (!(t != null && t.idleTimeoutId)) return;
+        clearTimeout(t.idleTimeoutId), t.idleTimeoutId = null;
+        const o = t.idleArmedAt != null ? Date.now() - t.idleArmedAt : void 0;
+        return t.idleArmedAt = null, o
+    }
+    registerSession(r) {
+        this.sessions.has(r) || (this.sessions.set(r, {
+            sessionId: r,
+            isTabVisible: !0,
+            hasPendingResult: !1,
+            lastResultTime: null,
+            lastActivityTime: null,
+            lastHiddenTime: null,
+            idleTimeoutId: null,
+            idleArmedAt: null,
+            isWarmingUp: !1
+        }), n.logger.debug(`${this.tag} Registered session ${r}`))
+    }
+    unregisterSession(r) {
+        const t = this.sessions.get(r);
+        t != null && t.idleTimeoutId && clearTimeout(t.idleTimeoutId), this.sessions.delete(r), n.logger.debug(`${this.tag} Unregistered session ${r}`)
+    }
+    onTurnComplete(r) {
+        const t = this.sessions.get(r);
+        t && (t.hasPendingResult = !0, t.lastResultTime = Date.now(), n.logger.debug(`${this.tag} Turn complete for ${r}, tabVisible: ${t.isTabVisible}`), (this.config.armOnTurnComplete === "always" || !t.isTabVisible) && this.startIdleTimeout(r))
+    }
+    onQueryInstalled(r) {
+        const t = this.sessions.get(r);
+        t && !t.isTabVisible && this.startIdleTimeout(r)
+    }
+    onActivity(r) {
+        const t = this.sessions.get(r);
+        t && (t.lastActivityTime = Date.now())
+    }
+    getLruIdleCandidate(r) {
+        let t = null,
+            o = 1 / 0;
+        for (const i of this.sessions.values()) {
+            if (i.isTabVisible || i.isWarmingUp || !i.hasPendingResult || !this.config.hasActiveQuery(i.sessionId) || r && !r(i.sessionId)) continue;
+            const s = zr(i);
+            s < o && (t = i, o = s)
+        }
+        return (t == null ? void 0 : t.sessionId) ?? null
+    }
+    onMessageSent(r) {
+        const t = this.sessions.get(r);
+        t && (n.logger.debug(`${this.tag} Message sent for ${r}`), this.clearIdleTimeout(r), t.hasPendingResult = !1, t.lastResultTime = null)
+    }
+    onVisibilityChange(r, t) {
+        var s, a;
+        const o = this.sessions.get(r);
+        if (!o) {
+            n.logger.debug(`${this.tag} Visibility change ignored, session ${r} not registered`);
+            return
+        }
+        const i = o.isTabVisible;
+        if (o.isTabVisible = t, n.logger.debug(`${this.tag} Visibility change for ${r}: ${i} → ${t}`), t && !i) {
+            this.clearIdleTimeout(r);
+            const {
+                onWarmUp: l
+            } = this.config;
+            if (l && !this.config.hasActiveQuery(r) && !o.isWarmingUp) {
+                o.isWarmingUp = !0;
+                const c = () => {
+                        if (!this.sessions.has(r) || !o.isTabVisible || this.config.hasActiveQuery(r)) {
+                            o.isWarmingUp = !1;
+                            return
+                        }
+                        n.logger.info(`${this.tag} Warming up session ${r}`), l(r).catch(p => {
+                            n.logger.error(`${this.tag} Failed to warm up ${r}:`, p)
+                        }).finally(() => {
+                            o.isWarmingUp = !1
+                        })
+                    },
+                    d = performance.now(),
+                    u = Math.max(0, this.nextWarmUpSlotAt - d);
+                this.nextWarmUpSlotAt = Math.max(d, this.nextWarmUpSlotAt) + pa, u === 0 ? c() : (n.logger.debug(`${this.tag} Staggering warm-up for ${r} by ${u}ms`), (a = (s = this.config).onAnalyticsEvent) == null || a.call(s, "desktop_ccd_session_idle_warm_staggered", {
+                    session_id: r,
+                    delay_ms: u
+                }), setTimeout(c, u))
+            }
+        } else !t && i && (o.lastHiddenTime = Date.now(), (o.hasPendingResult || this.config.timeoutOnHidden) && this.startIdleTimeout(r))
+    }
+    getState(r) {
+        return this.sessions.get(r)
+    }
+    getTimeoutMs() {
+        const r = this.config.idleTimeoutMs;
+        return typeof r == "function" ? r() : r
+    }
+    destroy() {
+        for (const [, r] of this.sessions) r.idleTimeoutId && clearTimeout(r.idleTimeoutId);
+        this.sessions.clear(), n.logger.info(`${this.tag} Destroyed`)
+    }
+    startIdleTimeout(r) {
+        var i, s;
+        const t = this.sessions.get(r);
+        if (!t) return;
+        this.clearIdleTimeout(r, {
+            silent: !0
+        });
+        const o = this.getTimeoutMs();
+        n.logger.info(`${this.tag} Starting idle timeout for ${r}: ${o/1e3}s`), (s = (i = this.config).onAnalyticsEvent) == null || s.call(i, "desktop_ccd_session_idle_timeout_started", {
+            session_id: r,
+            timeout_ms: o,
+            configured_timeout_ms: o,
+            seconds_since_last_activity: t.lastResultTime ? Math.round((Date.now() - t.lastResultTime) / 1e3) : null
+        }), t.lastActivityTime = null, t.idleArmedAt = Date.now(), this.scheduleIdleTimeout(t, o)
+    }
+    scheduleIdleTimeout(r, t) {
+        const {
+            sessionId: o
+        } = r;
+        r.idleTimeoutId = setTimeout(async () => {
+            if (r.idleTimeoutId = null, this.config.armOnTurnComplete === "when-hidden" && r.isTabVisible) {
+                n.logger.debug(`${this.tag} Tab became visible, skipping disconnect for ${o}`);
+                return
+            }
+            if (!this.config.hasActiveQuery(o)) {
+                n.logger.debug(`${this.tag} Session ${o} already disconnected`);
+                return
+            }
+            if (r.lastActivityTime !== null) {
+                const i = this.getTimeoutMs() - (Date.now() - r.lastActivityTime);
+                if (r.lastActivityTime = null, i > 0) {
+                    n.logger.debug(`${this.tag} Activity during idle window for ${o}, extending ${Math.round(i/1e3)}s`), this.scheduleIdleTimeout(r, i);
+                    return
+                }
+            }
+            n.logger.info(`${this.tag} Idle timeout reached, disconnecting ${o}`);
+            try {
+                await this.config.onDisconnect(o)
+            } catch (i) {
+                n.logger.error(`${this.tag} Failed to disconnect ${o}:`, i)
+            }
+            if (this.config.hasActiveQuery(o)) {
+                this.startIdleTimeout(o);
+                return
+            }
+            r.hasPendingResult = !1
+        }, t)
+    }
+    clearIdleTimeout(r, {
+        silent: t = !1
+    } = {}) {
+        var i, s;
+        const o = this.sessions.get(r);
+        o != null && o.idleTimeoutId && (clearTimeout(o.idleTimeoutId), o.idleTimeoutId = null, o.idleArmedAt = null, n.logger.debug(`${this.tag} Cleared timeout for ${r}`), t || (s = (i = this.config).onAnalyticsEvent) == null || s.call(i, "desktop_ccd_session_idle_timeout_cancelled", {
+            session_id: r,
+            seconds_since_last_activity: o.lastResultTime ? Math.round((Date.now() - o.lastResultTime) / 1e3) : null
+        }))
+    }
+}
+const ma = "Workflow";
+
+function fa(e, r) {
+    var i;
+    if (!e) return {
+        decision: "block",
+        reason: "Session state unavailable; cannot verify tool permissions."
+    };
+    const t = r.match(/^mcp__(.+?)__(.+)$/);
+    if (!t) return {
+        decision: "allow"
+    };
+    const o = `${t[1]}:${t[2]}`;
+    return ((i = e.enabledMcpTools) == null ? void 0 : i[o]) === !1 ? {
+        decision: "block",
+        reason: "This tool has been disabled in your connector settings."
+    } : {
+        decision: "allow"
+    }
+}
+
+function ga(e, r) {
+    const t = e.get(r);
+    if ((t == null ? void 0 : t.sessionType) === n.SESSION_TYPE_DISPATCH_CHILD && t.parentSessionId) {
+        const o = e.get(t.parentSessionId);
+        if (o && o.lifecycleState !== "archived") return t.parentSessionId
+    }
+    return r
+}
+
+function ya(e) {
+    if (!e) return {};
+    const r = {};
+    return e.chromePermissionMode !== void 0 && (r.chromePermissionMode = e.chromePermissionMode), e.chromeAllowedDomains !== void 0 && (r.chromeAllowedDomains = [...e.chromeAllowedDomains]), e.cuAllowedApps !== void 0 && (r.cuAllowedApps = [...e.cuAllowedApps]), e.cuGrantFlags !== void 0 && (r.cuGrantFlags = {
+        ...e.cuGrantFlags
+    }), e.approvedToolNames !== void 0 && (r.approvedToolNames = [...e.approvedToolNames]), r
+}
+
+function wa(e, r, t) {
+    return e.some(o => r - o.grantedAt >= t) ? e.filter(o => r - o.grantedAt < t) : e
+}
+const _a = {
+    ask: 0,
+    follow_a_plan: 1,
+    skip_all_permission_checks: 2
+};
+
+function gr(e) {
+    return e === void 0 ? -1 : _a[e] ?? 0
+}
+
+function va(e, r, t) {
+    const o = new Set([...e.chromeAllowedDomains ?? [], ...t]),
+        i = gr(e.chromePermissionMode);
+    return {
+        chromePermissionMode: gr(r) >= i ? r : e.chromePermissionMode,
+        chromeAllowedDomains: [...o]
+    }
+}
+
+function Sa(e, r, t) {
+    const o = r === "auto" || r === "bypassPermissions",
+        i = t ? "skip_all_permission_checks" : void 0;
+    if (o && !e.chromePermsBeforeUnsupervised) return {
+        chromePermissionMode: i,
+        chromeAllowedDomains: void 0,
+        chromePermsBeforeUnsupervised: {
+            mode: e.chromePermissionMode,
+            domains: e.chromeAllowedDomains
+        }
+    };
+    if (o && e.chromePermsBeforeUnsupervised) return {
+        chromePermissionMode: i,
+        chromeAllowedDomains: void 0,
+        chromePermsBeforeUnsupervised: e.chromePermsBeforeUnsupervised
+    };
+    if (!o && e.chromePermsBeforeUnsupervised) return {
+        chromePermissionMode: e.chromePermsBeforeUnsupervised.mode,
+        chromeAllowedDomains: e.chromePermsBeforeUnsupervised.domains,
+        chromePermsBeforeUnsupervised: void 0
+    }
+}
+
+function ba(e, r, t) {
+    const o = new Map((e.cuAllowedApps ?? []).map(s => [s.bundleId, s]));
+    for (const s of r) o.has(s.bundleId) || o.set(s.bundleId, s);
+    const i = e.cuGrantFlags;
+    return {
+        cuAllowedApps: [...o.values()],
+        cuGrantFlags: {
+            clipboardRead: ((i == null ? void 0 : i.clipboardRead) ?? !1) || t.clipboardRead,
+            clipboardWrite: ((i == null ? void 0 : i.clipboardWrite) ?? !1) || t.clipboardWrite,
+            systemKeyCombos: ((i == null ? void 0 : i.systemKeyCombos) ?? !1) || t.systemKeyCombos
+        }
+    }
+}
+
+function Ta(e) {
+    const r = [];
+    for (const t of e)
+        if (!(t.type !== "addRules" || t.behavior !== "allow" || !t.rules))
+            for (const o of t.rules) o.ruleContent == null && r.push(o.toolName);
+    return r
+}
+
+function ka(e, r, t) {
+    return e !== n.MCP_COWORK_REQUEST_DIRECTORY && e !== n.MCP_COWORK_SAVE_SKILL && e !== ma && e !== n.MCP_DELETE_SCHEDULED_TASK && !t(e) && ((r == null ? void 0 : r.includes(e)) ?? !1)
+}
+const Ea = "Workflow",
+    Kr = "Review the first dynamic workflow before auto-approving.",
+    Ca = "Workflow approval policy couldn't be resolved. Retry once your network and settings file are reachable.",
+    Yr = "Your organization requires approval for each dynamic workflow.";
+
+function Aa(e) {
+    return e === Kr || e === Yr
+}
+async function Pa() {
+    const e = Date.now();
+    let r = !1;
+    await n.awaitRemoteManagedSettingsFirstLoad().catch(() => {
+        r = !0
+    }), n.logEvent("desktop_ccd_workflow_consent_policy_wait_ms", {
+        wait_ms: Date.now() - e
+    }), await n.awaitUserSettingsWriteSettled().catch(() => {});
+    const t = await n.readSettingsLayers().catch(() => null);
+    if (t === null) return {
+        consented: !1,
+        managedFalse: !1,
+        indeterminate: !0
+    };
+    const o = n.resolveWithSource(t, "skipWorkflowUsageWarning"),
+        i = (o == null ? void 0 : o.value) === !1 && o.source === n.ClaudeCodeSettingsTier.Managed,
+        s = await n.getLastActiveOrg().catch(() => null);
+    return {
+        consented: (o == null ? void 0 : o.value) === !0,
+        managedFalse: i,
+        indeterminate: !i && (r || !_n.isRemoteManagedAuthoritativeFor(s))
+    }
+}
+const Ra = "policy-limits.json",
+    Ia = 3e3,
+    Ma = "oauth-2025-04-20",
+    xa = 1440 * 60 * 1e3;
+
+function Vr(e) {
+    if (e == null || typeof e != "object" || Array.isArray(e)) return !1;
+    const r = e.restrictions;
+    if (r == null || typeof r != "object" || Array.isArray(r)) return !1;
+    const t = e.compliance_taints;
+    if (t !== void 0 && !Array.isArray(t)) return !1;
+    const o = e.defaults;
+    return o === void 0 || typeof o == "object" && !Array.isArray(o)
+}
+async function Oa(e) {
+    const r = new URL("/api/claude_code/policy_limits", e.apiHost);
+    try {
+        const t = await K.net.fetch(r.toString(), {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${e.token}`,
+                "Content-Type": "application/json",
+                "anthropic-beta": Ma
+            },
+            signal: AbortSignal.timeout(Ia)
+        });
+        if (!t.ok) return n.logger.warn(`[policyLimits] GET ${r.pathname} → ${t.status}`), {
+            ok: !1
+        };
+        const o = await t.json();
+        return Vr(o) ? {
+            ok: !0,
+            policyLimits: {
+                restrictions: o.restrictions,
+                compliance_taints: o.compliance_taints ?? [],
+                defaults: o.defaults ?? {}
+            }
+        } : (n.logger.warn(`[policyLimits] GET ${r.pathname} → malformed body`), {
+            ok: !1
+        })
+    } catch (t) {
+        return n.logger.warn("[policyLimits] fetch failed:", t), {
+            ok: !1
+        }
+    }
+}
+
+function $a(e) {
+    return e != null && typeof e == "object" && typeof e.fetchedAt == "number" && Vr(e.policyLimits)
+}
+async function Da(e, r, t = Date.now()) {
+    const o = {
+        fetchedAt: t,
+        policyLimits: r
+    };
+    await n.writeFileAtomic(e, JSON.stringify(o))
+}
+async function Na(e, r = Date.now()) {
+    let t;
+    try {
+        t = await H.readFile(e, "utf-8")
+    } catch (i) {
+        if (i.code === "ENOENT") return null;
+        throw i
+    }
+    let o;
+    try {
+        o = JSON.parse(t)
+    } catch {
+        return null
+    }
+    return !$a(o) || r - o.fetchedAt > xa ? null : {
+        restrictions: o.policyLimits.restrictions,
+        compliance_taints: o.policyLimits.compliance_taints ?? [],
+        defaults: o.policyLimits.defaults ?? {}
+    }
+}
+async function La(e, r) {
+    const t = N.join(e, Ra),
+        o = await H.lstat(t).catch(() => null);
+    o && !o.isFile() || await n.writeFileAtomic(t, JSON.stringify(r, null, 2))
+}
+const Ua = n.objectType({
+        name: n.stringType(),
+        description: n.stringType().optional(),
+        inputSchema: n.unknownType(),
+        annotations: n.unknownType().optional(),
+        _meta: n.unknownType().optional()
+    }),
+    Fa = n.objectType({
+        uuid: n.stringType(),
+        name: n.stringType(),
+        instructions: n.stringType().optional(),
+        tools: n.arrayType(Ua)
+    });
+
+function qa(e) {
+    if (e != null) {
+        if (!Array.isArray(e)) {
+            n.logger.warn("[LocalSessionManager] Dropping non-array persisted remoteMcpServersConfig", {
+                type: typeof e
+            });
+            return
+        }
+        return e
+    }
+}
+
+function ja() {
+    const e = new Map;
+    return r => {
+        if (!(r != null && r.length)) return r;
+        const t = r.map(i => {
+                var s;
+                return `${i==null?void 0:i.uuid}/${((s=i==null?void 0:i.tools)==null?void 0:s.length)??0}`
+            }).sort().join(),
+            o = e.get(t);
+        if (o) {
+            const i = o.find(s => vn.isDeepStrictEqual(s, r));
+            if (i) return i;
+            o.push(r)
+        } else e.set(t, [r]);
+        return r
+    }
+}
+
+function Jr(e) {
+    const r = qa(e);
+    if (!r) return r;
+    let t = 0;
+    const o = r.flatMap(i => {
+        const s = Fa.safeParse(i);
+        return s.success ? [s.data] : (t++, [])
+    });
+    return t > 0 && n.logger.warn("Dropped malformed remoteMcpServersConfig entries on session load", {
+        dropped: t,
+        kept: o.length
+    }), o
+}
+
+function Xr(e) {
+    return !e || Buffer.byteLength(JSON.stringify(e), "utf8") <= n.REMOTE_MCP_PERSIST_MAX_BYTES ? e : e.map(r => ({
+        uuid: r.uuid,
+        name: r.name,
+        tools: r.tools.map(t => ({
+            name: t.name,
+            inputSchema: {
+                type: "object"
+            },
+            ...t.annotations != null && {
+                annotations: t.annotations
+            },
+            ...t._meta != null && {
+                _meta: t._meta
+            }
+        }))
+    }))
+}
+
+function Ba(e) {
+    return {
+        sessionId: e.sessionId,
+        cliSessionId: e.cliSessionId,
+        cwd: e.cwd,
+        originCwd: e.originCwd || "",
+        worktreePath: e.worktreePath,
+        worktreeName: e.worktreeName,
+        worktreePinned: e.worktreePinned,
+        lastFocusedAt: e.lastFocusedAt,
+        sourceBranch: e.sourceBranch,
+        branch: e.branch,
+        createdAt: e.createdAt,
+        lastActivityAt: e.lastActivityAt,
+        model: e.model,
+        effort: e.effort,
+        sessionSettings: e.sessionSettings,
+        agent: e.agent,
+        isArchived: e.isArchived,
+        title: e.title,
+        titleSource: e.titleSource,
+        permissionMode: e.permissionMode,
+        planPath: e.planPath,
+        enabledMcpTools: e.enabledMcpTools,
+        remoteMcpServersConfig: Xr(e.remoteMcpServersConfig),
+        sshConfig: e.sshConfig,
+        wslConfig: e.wslConfig,
+        sshRemoteTranscriptPath: e.sshRemoteTranscriptPath,
+        prNumber: e.prNumber,
+        prUrl: e.prUrl,
+        prRepository: e.prRepository,
+        prState: e.prState,
+        prs: e.prs,
+        writtenBranches: e.writtenBranches,
+        autoFixEnabled: e.autoFixEnabled,
+        autoArchiveExempt: e.autoArchiveExempt,
+        keptDirtyWorktree: e.keptDirtyWorktree,
+        seenCommentIds: e.seenCommentIds,
+        chromePermissionMode: e.chromePermissionMode,
+        chromeAllowedDomains: e.chromeAllowedDomains,
+        chromeTabGroupId: e.chromeTabGroupId,
+        cuAllowedApps: e.cuAllowedApps,
+        cuGrantFlags: e.cuGrantFlags,
+        cuLastScreenshotDims: e.cuLastScreenshotDims,
+        cuSelectedDisplayId: e.cuSelectedDisplayId,
+        promptSuggestion: e.promptSuggestion,
+        scheduledTaskId: e.scheduledTaskId,
+        spaceId: e.spaceId,
+        contextExceededCount: e.contextExceededCount,
+        completedTurns: e.completedTurns,
+        transcriptUnavailable: e.transcriptUnavailable,
+        error: e.error,
+        errorCategory: e.errorCategory,
+        tccFolderKind: e.tccFolderKind,
+        errorAt: e.errorAt,
+        queryCrashes: e.queryCrashes,
+        dispatchParentId: e.dispatchParentId,
+        dispatchParentOrigin: e.dispatchParentOrigin,
+        forkedFromSessionId: e.forkedFromSessionId,
+        spawnedFrom: e.spawnedFrom,
+        spawnedFromEndNotified: e.spawnedFromEndNotified,
+        emailAddress: e.emailAddress,
+        bridgeSessionIds: e.bridgeSessionIds,
+        alwaysAllowedReasons: Array.from(e.alwaysAllowedReasons),
+        sessionPermissionUpdates: e.sessionPermissionUpdates,
+        color: e.color,
+        classifierSummaryEnabled: e.classifierSummaryEnabled,
+        spawnSeed: e.spawnSeed
+    }
+}
+const Ha = new Set(Object.values(n.TccFolderKind));
+
+function Wa(e) {
+    return e !== void 0 && Ha.has(e) ? e : void 0
+}
+
+function Ga(e, r) {
+    const t = s => e.sshConfig || e.wslConfig ? s : n.expandTildePath(s),
+        o = Jr(e.remoteMcpServersConfig);
+    return {
+        ...{
+            sessionId: e.sessionId,
+            cliSessionId: e.cliSessionId,
+            cwd: t(e.cwd),
+            originCwd: t(e.originCwd || ""),
+            worktreePath: e.worktreePath,
+            worktreeName: e.worktreeName,
+            worktreePinned: e.worktreePinned,
+            lastFocusedAt: e.lastFocusedAt,
+            sourceBranch: e.sourceBranch,
+            branch: e.branch,
+            createdAt: e.createdAt,
+            lastActivityAt: e.lastActivityAt,
+            model: e.model,
+            effort: e.effort,
+            sessionSettings: e.sessionSettings,
+            agent: e.agent,
+            isArchived: e.isArchived ?? !1,
+            title: e.title ?? void 0,
+            titleSource: e.titleSource,
+            permissionMode: e.permissionMode ?? n.PermissionMode.Default,
+            planPath: e.planPath,
+            enabledMcpTools: e.enabledMcpTools,
+            remoteMcpServersConfig: (r ?? (s => s))(o),
+            sshConfig: e.sshConfig,
+            wslConfig: e.wslConfig,
+            sshRemoteTranscriptPath: e.sshRemoteTranscriptPath,
+            sessionPermissionUpdates: e.sessionPermissionUpdates ?? [],
+            alwaysAllowedReasons: new Set(e.alwaysAllowedReasons ?? []),
+            prNumber: e.prNumber,
+            prUrl: e.prUrl,
+            prRepository: e.prRepository,
+            prState: e.prState,
+            prs: e.prs ?? (e.prNumber && e.prUrl && e.prRepository && e.branch ? [{
+                prNumber: e.prNumber,
+                url: e.prUrl,
+                repo: e.prRepository,
+                branch: e.branch,
+                state: e.prState
+            }] : void 0),
+            writtenBranches: e.writtenBranches,
+            autoFixEnabled: e.autoFixEnabled,
+            autoArchiveExempt: e.autoArchiveExempt,
+            keptDirtyWorktree: e.keptDirtyWorktree,
+            seenCommentIds: e.seenCommentIds,
+            chromePermissionMode: e.chromePermissionMode,
+            chromeAllowedDomains: e.chromeAllowedDomains,
+            chromeTabGroupId: e.chromeTabGroupId,
+            cuAllowedApps: e.cuAllowedApps,
+            cuGrantFlags: e.cuGrantFlags,
+            cuLastScreenshotDims: e.cuLastScreenshotDims ? {
+                width: e.cuLastScreenshotDims.width,
+                height: e.cuLastScreenshotDims.height,
+                displayWidth: e.cuLastScreenshotDims.displayWidth,
+                displayHeight: e.cuLastScreenshotDims.displayHeight,
+                displayId: e.cuLastScreenshotDims.displayId ?? 0,
+                originX: e.cuLastScreenshotDims.originX ?? 0,
+                originY: e.cuLastScreenshotDims.originY ?? 0
+            } : void 0,
+            cuSelectedDisplayId: e.cuSelectedDisplayId,
+            promptSuggestion: e.promptSuggestion,
+            scheduledTaskId: e.scheduledTaskId,
+            spaceId: e.spaceId,
+            contextExceededCount: e.contextExceededCount,
+            completedTurns: e.completedTurns,
+            transcriptUnavailable: e.transcriptUnavailable,
+            error: e.error,
+            errorCategory: e.errorCategory,
+            tccFolderKind: Wa(e.tccFolderKind),
+            errorAt: e.errorAt,
+            queryCrashes: e.queryCrashes,
+            dispatchParentId: e.dispatchParentId,
+            dispatchParentOrigin: e.dispatchParentOrigin,
+            forkedFromSessionId: e.forkedFromSessionId,
+            spawnedFrom: e.spawnedFrom,
+            spawnedFromEndNotified: e.spawnedFromEndNotified,
+            emailAddress: e.emailAddress,
+            bridgeSessionIds: e.bridgeSessionIds,
+            color: e.color,
+            classifierSummaryEnabled: e.classifierSummaryEnabled,
+            spawnSeed: e.spawnSeed
+        },
+        sshRemoteProjectDir: e.sshRemoteTranscriptPath ? N.posix.dirname(e.sshRemoteTranscriptPath) : void 0,
+        query: null,
+        inputStream: null,
+        isRunning: !1,
+        isFirstTurn: !e.cliSessionId,
+        messageBuffer: [],
+        backend: Ir(e.sshConfig, e.wslConfig)
+    }
+}
+async function za(e, r) {
+    const t = new Set(r);
+    for (const o of r) {
+        if (!o.startsWith(n.LOCAL_SESSION_PREFIX) || !o.endsWith(".json.tmp")) continue;
+        const i = o.slice(0, -4),
+            s = N.join(e, o),
+            a = N.join(e, i),
+            l = await j.promises.stat(s).then(c => c.size).catch(() => 0);
+        if (l > n.SESSION_FILE_MAX_BYTES) {
+            n.logger.warn(`[LocalSessionManager] Skipping recovery of oversized session temp ${o} (${(l/1024/1024).toFixed(1)} MB)`);
+            continue
+        }
+        if (t.has(i)) {
+            if (await j.promises.stat(a).then(d => d.size).catch(() => 0) > n.SESSION_FILE_MAX_BYTES) continue;
+            try {
+                JSON.parse(await j.promises.readFile(a, "utf-8"));
+                continue
+            } catch {}
+        }
+        try {
+            const c = await j.promises.readFile(s);
+            await n.writeFilePrivate(a, c), t.add(i), n.logger.warn(`[LocalSessionManager] Recovered orphaned session temp ${o} → ${i}`), await j.promises.rm(s, {
+                force: !0
+            }).catch(() => {})
+        } catch (c) {
+            n.logger.error(`[LocalSessionManager] Failed to recover orphaned session temp ${o}:`, c)
+        }
+    }
+    return t
+}
+const Ka = 16;
+
+function Ya(e) {
+    let r;
+
+    function t() {
+        if (!r) return;
+        const i = r;
+        r = void 0, clearTimeout(i.timer);
+        const s = i.base,
+            a = s.event.delta,
+            l = {
+                ...s,
+                event: {
+                    ...s.event,
+                    delta: {
+                        ...a,
+                        [i.field]: i.parts.join("")
+                    }
+                }
+            };
+        e(l, i.context)
+    }
+
+    function o(i, s) {
+        if (i.type !== "stream_event") {
+            t(), e(i, s);
+            return
+        }
+        const a = i.event;
+        let l, c, d = 0;
+        if ((a == null ? void 0 : a.type) === "content_block_delta" && a.delta) switch (d = a.index ?? 0, a.delta.type) {
+            case "text_delta":
+                l = "text", c = a.delta.text;
+                break;
+            case "input_json_delta":
+                l = "partial_json", c = a.delta.partial_json;
+                break;
+            case "thinking_delta":
+                l = "thinking", c = a.delta.thinking;
+                break
+        }
+        if (l === void 0 || typeof c != "string") {
+            t(), e(i, s);
+            return
+        }
+        const u = i.parent_tool_use_id;
+        if (r && r.field === l && r.index === d && r.parentToolUseId === u) {
+            r.parts.push(c);
+            return
+        }
+        t(), r = {
+            base: i,
+            field: l,
+            index: d,
+            parentToolUseId: u,
+            context: s,
+            parts: [c],
+            timer: setTimeout(t, Ka)
+        }
+    }
+    return {
+        push: o,
+        flush: t
+    }
+}
+const Va = 50 * 1024 * 1024;
+async function Et(e) {
+    try {
+        var r = [];
+        try {
+            const a = jt(r, await n.SafeRoot.open(N.dirname(e), "vm", {
+                allowUnc: !0
+            }), !0);
+            return await a.readFile(N.basename(e), {
+                maxBytes: Va
+            })
+        } catch (t) {
+            var o = t,
+                i = !0
+        } finally {
+            var s = Bt(r, o, i);
+            s && await s
+        }
+    } catch {
+        return null
+    }
+}
+const Ja = new Set(["echo.log", "echo1.log", "traces"]);
+async function Xa({
+    cliSessionId: e,
+    projectsDir: r,
+    metadataFilePath: t,
+    extraFiles: o
+}) {
+    try {
+        const i = {};
+        try {
+            const u = await j.promises.readdir(r),
+                h = await new n.PQueue({
+                    concurrency: 20
+                }).addAll(u.map(f => async () => {
+                    const _ = N.join(r, f),
+                        A = await j.promises.lstat(_).catch(() => null);
+                    if (!A || A.isSymbolicLink() || !A.isDirectory()) return null;
+                    const v = N.join(_, `${e}.jsonl`),
+                        P = await j.promises.lstat(v).catch(() => null);
+                    return P != null && P.isFile() ? {
+                        projectPath: _,
+                        transcriptPath: v
+                    } : null
+                }));
+            for (const f of h) {
+                if (!f) continue;
+                const _ = await Et(f.transcriptPath);
+                if (_ === null) continue;
+                i[`${e}.jsonl`] = new Uint8Array(_);
+                const A = N.join(f.projectPath, e);
+                try {
+                    (await j.promises.lstat(A)).isDirectory() && await Ne(A, e, i)
+                } catch {}
+                break
+            }
+        } catch {
+            n.logger.warn("[transcriptExport] projects directory not found", {
+                projectsDir: r
+            })
+        }
+        if (t) try {
+            const u = await j.promises.readFile(t, "utf-8");
+            i["metadata.json"] = new TextEncoder().encode(u)
+        } catch {
+            n.logger.warn("[transcriptExport] Failed to read session metadata — omitting", {
+                metadataFilePath: t
+            })
+        }
+        if (Object.keys(i).length === 0) return {
+            success: !1,
+            error: "No transcript data found for this session."
+        };
+        for (const [u, p] of Object.entries(o ?? {})) i[u] = new Uint8Array(n.scrubBufferForBundle(u, Buffer.from(p), n.SUPPORT_BUNDLE_SCRUB_OPTS));
+        try {
+            await Ne(K.app.getPath("logs"), "logs", i, Ja, (u, p) => n.scrubBufferForBundle(u, p, n.SUPPORT_BUNDLE_SCRUB_OPTS))
+        } catch (u) {
+            n.logger.warn("[transcriptExport] Failed to include app logs — omitting", {
+                error: u
+            })
+        }
+        const s = await new Promise((u, p) => {
+                n.zip(i, {
+                    level: 6
+                }, (h, f) => {
+                    h ? p(h) : u(f)
+                })
+            }),
+            l = `session-export-${Date.now()}.zip`,
+            c = N.join(yr.homedir(), "Downloads"),
+            d = N.join(c, l);
+        try {
+            await j.promises.access(c)
+        } catch {
+            await j.promises.mkdir(c, {
+                recursive: !0
+            })
+        }
+        return await j.promises.writeFile(d, Buffer.from(s)), n.logger.info(`[transcriptExport] Session ${e} exported to ${d} (${s.length} bytes, ${Object.keys(i).length} files)`), {
+            success: !0,
+            filePath: d
+        }
+    } catch (i) {
+        const s = i instanceof Error ? i.message : String(i);
+        return n.logger.error(`[transcriptExport] Failed: ${s}`, {
+            error: i
+        }), {
+            success: !1,
+            error: s
+        }
+    }
+}
+async function Ne(e, r, t, o, i) {
+    const s = await j.promises.readdir(e);
+    for (const a of s) {
+        if (o != null && o.has(a)) continue;
+        const l = N.join(e, a),
+            c = `${r}/${a}`;
+        try {
+            const d = await j.promises.lstat(l);
+            if (d.isSymbolicLink()) continue;
+            if (d.isDirectory()) await Ne(l, c, t, o, i);
+            else if (d.isFile()) {
+                const u = await Et(l);
+                u !== null && (t[c] = new Uint8Array(i ? i(a, u) : u))
+            }
+        } catch (d) {
+            n.logger.warn("[transcriptExport] Skipping unreadable entry", {
+                fullPath: l,
+                error: d
+            })
+        }
+    }
+}
+exports.COMPUTER_USE_SAFETY_RULES = vt;
+exports.FRAMEBUFFER_READONLY_TOOLS = Rn;
+exports.FRAMEBUFFER_SERVER_NAME = vr;
+exports.MCP_CCD_ARCHIVE_SESSION = ri;
+exports.MCP_CCD_GET_SESSION = Zo;
+exports.MCP_CCD_LIST_EVENTS = ti;
+exports.MCP_CCD_LIST_SESSIONS = Qo;
+exports.MCP_CCD_READ_WIDGET_CONTEXT = Rs;
+exports.MCP_CCD_REQUEST_DIRECTORY = Cs;
+exports.MCP_CCD_SEARCH_TRANSCRIPTS = ei;
+exports.MCP_CCD_SEND_MESSAGE = oi;
+exports.MCP_CCD_SET_SESSION_TITLE = ni;
+exports.McpProxyCoordinator = sa;
+exports.MessageStream = aa;
+exports.PREVIEW_SERVER_NAME = Ue;
+exports.SDK_MESSAGE_TYPES = qi;
+exports.SessionAccountManager = Si;
+exports.WORKFLOW_CONSENT_HOOK_DECISION_REASON = Kr;
+exports.WORKFLOW_CONSENT_INDETERMINATE_DECISION_REASON = Ca;
+exports.WORKFLOW_CONSENT_MANAGED_DECISION_REASON = Yr;
+exports.WORKFLOW_TOOL_NAME = Ea;
+exports.WarmProcessLifecycle = ha;
+exports.activeChainUuids = Wi;
+exports.activeToPersisted = Ba;
+exports.addDirectoryToZip = Ne;
+exports.addTokenUsage = Cn;
+exports.applyManagedBuiltinToolPolicy = So;
+exports.bufferPendingNotOnDisk = Ko;
+exports.buildMessageContent = zi;
+exports.buildSubagentEnvironmentPrompt = zo;
+exports.buildSystemPrompt = Go;
+exports.captureCcdSessionError = Jo;
+exports.classifyAuthError = Oi;
+exports.coalesceDeferredUserMessages = Ki;
+exports.computeChromeStateOnPermissionModeChange = Sa;
+exports.computeMcpServerDiff = ia;
+exports.countImagesInBuffer = Pi;
+exports.createSessionBackend = Ir;
+exports.evaluateRemoteMcpDenyHook = fa;
+exports.exportSessionTranscript = Xa;
+exports.extractApprovableToolNames = Ta;
+exports.fetchPolicyLimits = Oa;
+exports.filterLiveCuGrants = wa;
+exports.findPrecedingAssistantUuid = ji;
+exports.getMcpServerKey = ft;
+exports.inheritDispatchChildPermissionState = ya;
+exports.isAlwaysLoadModel = Nr;
+exports.isChromeAutomodeDefaultEnabled = kn;
+exports.isNoConversationFoundResult = ki;
+exports.isOverCap = An;
+exports.isPromptTooLongResult = Ti;
+exports.isWorkflowConsentDecisionReason = Aa;
+exports.lookupDirectMcp = le;
+exports.lruRecency = zr;
+exports.makeRemoteMcpServersIntern = ja;
+exports.makeStreamDeltaCoalescer = Ya;
+exports.measureBufferBytes = Ai;
+exports.mergeChromePermissionUpdate = va;
+exports.mergeCuPermissionUpdate = ba;
+exports.mergePendingIntoDisk = Yo;
+exports.mergeSystemReminder = Gi;
+exports.parseRemoteMcpServersConfig = Jr;
+exports.persistedToActive = Ga;
+exports.queryTabUrlForCanUseTool = Gs;
+exports.readPolicyLimitsFromPersistFile = Na;
+exports.readRegularFileNoFollow = Et;
+exports.recordWarmCredentialRefresh = ca;
+exports.recoverOrphanedSessionTemps = za;
+exports.resolvePermissionSessionId = ga;
+exports.resolveToolModeProjectUuid = Oo;
+exports.resolveWorkflowConsent = Pa;
+exports.rewriteAuthErrorResult = Ni;
+exports.rewritePromptTooLongResult = Ci;
+exports.seedPolicyLimitsIntoClaudeDir = La;
+exports.sessionRuleCacheAllows = ka;
+exports.slimRemoteMcpServers = Xr;
+exports.sortMcpServersForCacheStability = To;
+exports.sortPluginsForCacheStability = ko;
+exports.syncProjectsForSession = $o;
+exports.transcriptSearchService = Ao;
+exports.webSearchSystemPromptFragment = Pr;
+exports.writePolicyLimitsToPersistFile = Da;
+//# sourceMappingURL=index.chunk-D6CHG_4h.js.map
